@@ -94,4 +94,20 @@ $TMUX set -g @wf_value 2 || fail "set @wf_value 2 failed"
 wait_channel wf-late
 wait "$late_pid" || fail "late wait-for -E command failed"
 
+$TMUX new -d -s wf2 || fail "new-session wf2 failed"
+
+$TMUX wait-for -E window-renamed \; wait-for -S wf-renamed &
+renamed_pid=$!
+
+sleep 0.5
+$TMUX rename-window -t wf2:0 renamed || fail "rename-window failed"
+wait_channel wf-renamed
+wait "$renamed_pid" || fail "wait-for -E window-renamed failed"
+
+$TMUX set-hook -g window-renamed 'wait-for -S wf-hook-renamed' ||
+	fail "set-hook window-renamed failed"
+$TMUX rename-window -t wf2:0 renamed-again ||
+	fail "rename-window renamed-again failed"
+wait_channel wf-hook-renamed
+
 exit 0

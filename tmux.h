@@ -2339,10 +2339,10 @@ struct monitor_change {
 typedef void (*monitor_cb)(struct monitor_change *, void *);
 
 /* Events. */
-typedef void (*events_cb)(const char *, void *, const struct events_type *,
-	    void *);
+typedef void (*events_cb)(const char *, void *, struct events_type *, void *);
 typedef void (*events_add_formats_cb)(void *, struct format_tree *);
 typedef int (*events_find_state_cb)(void *, struct cmd_find_state *);
+typedef struct client *(*events_get_client_cb)(void *);
 
 /* Key binding and key table. */
 struct key_binding {
@@ -2655,10 +2655,15 @@ char		*format_grid_line(struct grid *, u_int);
 
 /* events.c */
 int	 events_add_event(const char *, events_add_formats_cb,
-	     events_find_state_cb);
+	     events_find_state_cb, events_get_client_cb);
 struct events_sink *events_add_sink(const char *, events_cb, void *);
 void	 events_remove_sink(struct events_sink *);
 void	 events_fire(const char *, void *);
+void	 events_add_formats(struct events_type *, void *,
+	     struct format_tree *);
+int	 events_find_state(struct events_type *, void *,
+	     struct cmd_find_state *);
+struct client *events_get_client(struct events_type *, void *);
 
 /* format-draw.c */
 void		 format_draw(struct screen_write_ctx *,
