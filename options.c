@@ -356,7 +356,7 @@ options_remove(struct options_entry *o)
 	else
 		options_value_free(o, &o->value);
 	if (o->monitor_data != NULL)
-		notify_monitor_free(o->monitor_data);
+		hooks_monitor_free(o->monitor_data);
 	RB_REMOVE(options_tree, &oo->tree, o);
 	free((void *)o->name);
 	free(o);

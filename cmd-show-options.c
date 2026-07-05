@@ -212,7 +212,7 @@ cmd_show_hooks_print_monitor(struct cmdq_item *item, struct options_entry *o)
 {
 	char	*value;
 
-	value = notify_monitor_to_string(o);
+	value = hooks_monitor_to_string(o);
 	if (value == NULL)
 		return;
 	cmdq_print(item, "%s", value);

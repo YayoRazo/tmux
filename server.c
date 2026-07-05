@@ -214,6 +214,7 @@ server_start(struct tmuxproc *client, uint64_t flags, struct event_base *base,
 	TAILQ_INIT(&clients);
 	RB_INIT(&sessions);
 	key_bindings_init();
+	control_build_events();
 	TAILQ_INIT(&message_log);
 	gettimeofday(&start_time, NULL);
 

@@ -130,7 +130,7 @@ cmd_set_hook_monitor_exec(struct cmdq_item *item, struct args *args, int window)
 	cmd_find_copy_state(&fs, target);
 
 	if (args_has(args, 'u')) {
-		notify_monitor_remove(oo, name);
+		hooks_monitor_remove(oo, name);
 		goto out;
 	}
 
@@ -152,7 +152,7 @@ cmd_set_hook_monitor_exec(struct cmdq_item *item, struct args *args, int window)
 		}
 	}
 
-	notify_monitor_add(item, oo, name, type, id, format, &fs, target->s);
+	hooks_monitor_add(item, oo, name, type, id, format, &fs, target->s);
 
 out:
 	free(newvalue);
@@ -197,7 +197,7 @@ cmd_set_option_exec(struct cmd *self, struct cmdq_item *item)
 
 	/* If set-hook -R, fire the hook straight away. */
 	if (cmd_get_entry(self) == &cmd_set_hook_entry && args_has(args, 'R')) {
-		notify_hook(item, argument);
+		hooks_run(item, argument);
 		free(argument);
 		return (CMD_RETURN_NORMAL);
 	}

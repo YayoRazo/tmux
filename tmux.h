@@ -2344,6 +2344,21 @@ typedef void (*events_add_formats_cb)(void *, struct format_tree *);
 typedef int (*events_find_state_cb)(void *, struct cmd_find_state *);
 typedef struct client *(*events_get_client_cb)(void *);
 
+/* Data passed by notify producers to event sinks. */
+struct notify_entry {
+	const char		*name;
+	struct cmd_find_state	 fs;
+	struct format_tree	*formats;
+	struct options		*oo;
+
+	struct client		*client;
+	struct session		*session;
+	struct window		*window;
+	int			 pane;
+	const char		*pbname;
+	int			 expand;
+};
+
 /* Key binding and key table. */
 struct key_binding {
 	key_code		 key;
@@ -2673,14 +2688,17 @@ u_int		 format_width(const char *);
 char		*format_trim_left(const char *, u_int);
 char		*format_trim_right(const char *, u_int);
 
-/* notify.c */
-void	notify_hook(struct cmdq_item *, const char *);
-void	notify_monitor_add(struct cmdq_item *, struct options *,
+/* hooks.c */
+void	 hooks_add_event(const char *);
+void	 hooks_run(struct cmdq_item *, const char *);
+void	 hooks_monitor_add(struct cmdq_item *, struct options *,
 	    const char *, enum monitor_type, int, const char *,
 	    struct cmd_find_state *, struct session *);
-void	notify_monitor_remove(struct options *, const char *);
-void	notify_monitor_free(void *);
-char	*notify_monitor_to_string(struct options_entry *);
+void	 hooks_monitor_remove(struct options *, const char *);
+void	 hooks_monitor_free(void *);
+char	*hooks_monitor_to_string(struct options_entry *);
+
+/* notify.c */
 void	notify_client(const char *, struct client *);
 void	notify_session(const char *, struct session *);
 void	notify_winlink(const char *, struct winlink *);
@@ -3914,20 +3932,7 @@ void	control_add_sub(struct client *, const char *, enum monitor_type, int,
 void	control_remove_sub(struct client *, const char *);
 
 /* control-notify.c */
-void	control_notify_pane_mode_changed(int);
-void	control_notify_window_layout_changed(struct window *);
-void	control_notify_window_pane_changed(struct window *);
-void	control_notify_window_unlinked(struct session *, struct window *);
-void	control_notify_window_linked(struct session *, struct window *);
-void	control_notify_window_renamed(struct window *);
-void	control_notify_client_session_changed(struct client *);
-void	control_notify_client_detached(struct client *);
-void	control_notify_session_renamed(struct session *);
-void	control_notify_session_created(struct session *);
-void	control_notify_session_closed(struct session *);
-void	control_notify_session_window_changed(struct session *);
-void	control_notify_paste_buffer_changed(const char *);
-void	control_notify_paste_buffer_deleted(const char *);
+void	control_build_events(void);
 
 /* session.c */
 extern struct sessions sessions;
