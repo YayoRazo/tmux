@@ -85,8 +85,8 @@ static enum cmd_retval	cmd_wait_for_lock(struct cmdq_item *, const char *,
 static enum cmd_retval	cmd_wait_for_unlock(struct cmdq_item *, const char *,
 			    struct wait_channel *);
 static enum cmd_retval	cmd_wait_for_event(struct cmdq_item *, const char *);
-static void		cmd_wait_for_event_cb(const char *, void *,
-			    struct events_type *, void *);
+static void		cmd_wait_for_event_cb(const char *,
+			    struct event_payload *, void *);
 
 static struct wait_channel	*cmd_wait_for_add(const char *);
 static void			 cmd_wait_for_remove(struct wait_channel *);
@@ -158,8 +158,8 @@ cmd_wait_for_exec(struct cmd *self, struct cmdq_item *item)
 }
 
 static void
-cmd_wait_for_event_cb(__unused const char *name, __unused void *data,
-    __unused struct events_type *type, void *item_data)
+cmd_wait_for_event_cb(__unused const char *name,
+    __unused struct event_payload *ep, void *item_data)
 {
 	struct wait_event_item	*wei = item_data;
 

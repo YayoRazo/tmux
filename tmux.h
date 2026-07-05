@@ -49,8 +49,9 @@ struct cmdq_state;
 struct cmds;
 struct control_state;
 struct environ;
+struct event_payload;
+struct event_payload_item;
 struct events_sink;
-struct events_type;
 struct format_job_tree;
 struct format_tree;
 struct hyperlinks_uri;
@@ -2338,26 +2339,21 @@ struct monitor_change {
 };
 typedef void (*monitor_cb)(struct monitor_change *, void *);
 
-/* Events. */
-typedef void (*events_cb)(const char *, void *, struct events_type *, void *);
-typedef void (*events_add_formats_cb)(void *, struct format_tree *);
-typedef int (*events_find_state_cb)(void *, struct cmd_find_state *);
-typedef struct client *(*events_get_client_cb)(void *);
-
-/* Data passed by notify producers to event sinks. */
-struct notify_entry {
-	const char		*name;
-	struct cmd_find_state	 fs;
-	struct format_tree	*formats;
-	struct options		*oo;
-
-	struct client		*client;
-	struct session		*session;
-	struct window		*window;
-	int			 pane;
-	const char		*pbname;
-	int			 expand;
+/* Event payload type. */
+enum event_payload_type {
+	EVENT_PAYLOAD_STRING,
+	EVENT_PAYLOAD_TIME,
+	EVENT_PAYLOAD_CLIENT,
+	EVENT_PAYLOAD_SESSION,
+	EVENT_PAYLOAD_WINDOW,
+	EVENT_PAYLOAD_PANE,
+	EVENT_PAYLOAD_WINLINK,
+	EVENT_PAYLOAD_POINTER
 };
+
+/* Event payload callbacks. */
+typedef void (*event_payload_free_cb)(void *);
+typedef void (*event_payload_print_cb)(void *, struct evbuffer *);
 
 /* Key binding and key table. */
 struct key_binding {
@@ -2668,25 +2664,62 @@ char		*format_grid_hyperlink(struct grid *, u_int, u_int,
 		     struct screen *);
 char		*format_grid_line(struct grid *, u_int);
 
+/* events-payload.c */
+struct event_payload *event_payload_create(void);
+void	 event_payload_free(struct event_payload *);
+void printflike(2, 3) event_payload_log(struct event_payload *, const char *,
+	     ...);
+char	*event_payload_item_print(struct event_payload_item *);
+void printflike(3, 4) event_payload_set_string(struct event_payload *,
+	     const char *, const char *, ...);
+void	 event_payload_set_time(struct event_payload *, const char *, time_t);
+void	 event_payload_set_client(struct event_payload *, const char *,
+	     struct client *);
+void	 event_payload_set_session(struct event_payload *, const char *,
+	     struct session *);
+void	 event_payload_set_window(struct event_payload *, const char *,
+	     struct window *);
+void	 event_payload_set_pane(struct event_payload *, const char *,
+	     struct window_pane *);
+void	 event_payload_set_winlink(struct event_payload *, const char *,
+	     struct winlink *);
+void	 event_payload_set_pointer(struct event_payload *, const char *,
+	     void *, event_payload_free_cb, event_payload_print_cb);
+const char *event_payload_get_string(struct event_payload *,
+	     const char *);
+char	*event_payload_print(struct event_payload *, const char *);
+struct event_payload_item *event_payload_first(struct event_payload *);
+struct event_payload_item *event_payload_next(struct event_payload_item *);
+const char *event_payload_item_name(struct event_payload_item *);
+enum event_payload_type event_payload_item_type(struct event_payload_item *);
+int	 event_payload_get_time(struct event_payload *, const char *,
+	     time_t *);
+struct client *event_payload_get_client(struct event_payload *,
+	     const char *);
+struct session *event_payload_get_session(struct event_payload *,
+	     const char *);
+struct window *event_payload_get_window(struct event_payload *,
+	     const char *);
+struct window_pane *event_payload_get_pane(struct event_payload *,
+	     const char *);
+struct winlink *event_payload_get_winlink(struct event_payload *,
+	     const char *);
+void	*event_payload_get_pointer(struct event_payload *,
+	     const char *);
+
 /* events.c */
-int	 events_add_event(const char *, events_add_formats_cb,
-	     events_find_state_cb, events_get_client_cb);
+typedef void (*events_cb)(const char *, struct event_payload *, void *);
+int	 events_add_event(const char *);
 struct events_sink *events_add_sink(const char *, events_cb, void *);
 void	 events_remove_sink(struct events_sink *);
-void	 events_fire(const char *, void *);
-void	 events_add_formats(struct events_type *, void *,
-	     struct format_tree *);
-int	 events_find_state(struct events_type *, void *,
-	     struct cmd_find_state *);
-struct client *events_get_client(struct events_type *, void *);
+void	 events_fire(const char *, struct event_payload *);
 
 /* format-draw.c */
-void		 format_draw(struct screen_write_ctx *,
-		     const struct grid_cell *, u_int, const char *,
-		     struct style_ranges *, int);
-u_int		 format_width(const char *);
-char		*format_trim_left(const char *, u_int);
-char		*format_trim_right(const char *, u_int);
+void	 format_draw(struct screen_write_ctx *, const struct grid_cell *,
+	     u_int, const char *, struct style_ranges *, int);
+u_int	 format_width(const char *);
+char	*format_trim_left(const char *, u_int);
+char	*format_trim_right(const char *, u_int);
 
 /* hooks.c */
 void	 hooks_add_event(const char *);

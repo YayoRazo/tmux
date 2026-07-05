@@ -37,10 +37,14 @@ struct hook_monitor {
 	char			*format;
 };
 
-/* Hook monitor event data passed through events_fire. */
-struct hook_monitor_event {
-	struct hook_monitor	*hm;
-	struct monitor_change	*change;
+/* Hook command data built from an event payload. */
+struct hooks_data {
+	const char		*name;
+	struct cmd_find_state	 fs;
+	struct format_tree	*formats;
+	struct options		*oo;
+	struct client		*client;
+	int			 expand;
 };
 
 /* Hook event sink registered for a notify event name. */
@@ -49,12 +53,12 @@ struct hooks_event {
 	struct events_sink	*sink;
 	TAILQ_ENTRY(hooks_event) entry;
 };
-static TAILQ_HEAD(, hooks_event) hooks_events =
-    TAILQ_HEAD_INITIALIZER(hooks_events);
+TAILQ_HEAD(hooks_events, hooks_event);
+static struct hooks_events hooks_events = TAILQ_HEAD_INITIALIZER(hooks_events);
 
 /* Insert one hook command list. */
 static struct cmdq_item *
-hooks_insert_one(struct cmdq_item *item, struct notify_entry *ne,
+hooks_insert_one(struct cmdq_item *item, struct hooks_data *hd,
     struct cmd_list *cmdlist, struct cmdq_state *state)
 {
 	struct cmdq_item	*new_item;
@@ -64,7 +68,7 @@ hooks_insert_one(struct cmdq_item *item, struct notify_entry *ne,
 		return (item);
 	if (log_get_level() != 0) {
 		s = cmd_list_print(cmdlist, 0);
-		log_debug("%s: hook %s is: %s", __func__, ne->name, s);
+		log_debug("%s: hook %s is: %s", __func__, hd->name, s);
 		free(s);
 	}
 	new_item = cmdq_get_command(cmdlist, state);
@@ -75,19 +79,19 @@ hooks_insert_one(struct cmdq_item *item, struct notify_entry *ne,
 
 /* Parse a hook command. */
 static struct cmd_parse_result *
-hooks_parse(struct notify_entry *ne, struct cmd_find_state *fs,
+hooks_parse(struct hooks_data *hd, struct cmd_find_state *fs,
     const char *value)
 {
 	struct cmd_parse_result	*pr;
 	struct format_tree	*ft;
 	char			*expanded;
 
-	if (!ne->expand)
+	if (!hd->expand)
 		return (cmd_parse_from_string(value, NULL));
 
-	ft = format_create_defaults(NULL, ne->client, fs->s, fs->wl, fs->wp);
-	if (ne->formats != NULL)
-		format_merge(ft, ne->formats);
+	ft = format_create_defaults(NULL, hd->client, fs->s, fs->wl, fs->wp);
+	if (hd->formats != NULL)
+		format_merge(ft, hd->formats);
 	expanded = format_expand(ft, value);
 	format_free(ft);
 
@@ -98,7 +102,7 @@ hooks_parse(struct notify_entry *ne, struct cmd_find_state *fs,
 
 /* Insert commands for a hook. */
 static void
-hooks_insert(struct cmdq_item *item, struct notify_entry *ne)
+hooks_insert(struct cmdq_item *item, struct hooks_data *hd)
 {
 	struct cmd_find_state		 fs;
 	struct options			*oo;
@@ -109,72 +113,72 @@ hooks_insert(struct cmdq_item *item, struct notify_entry *ne)
 	const char			*value;
 	struct cmd_parse_result		*pr;
 
-	log_debug("%s: inserting hook %s", __func__, ne->name);
+	log_debug("%s: inserting hook %s", __func__, hd->name);
 
 	cmd_find_clear_state(&fs, 0);
-	if (cmd_find_empty_state(&ne->fs) || !cmd_find_valid_state(&ne->fs))
+	if (cmd_find_empty_state(&hd->fs) || !cmd_find_valid_state(&hd->fs))
 		cmd_find_from_nothing(&fs, 0);
 	else
-		cmd_find_copy_state(&fs, &ne->fs);
+		cmd_find_copy_state(&fs, &hd->fs);
 
-	if (ne->oo != NULL) {
-		oo = ne->oo;
-		o = options_get_only(oo, ne->name);
+	if (hd->oo != NULL) {
+		oo = hd->oo;
+		o = options_get_only(oo, hd->name);
 	} else {
 		if (fs.s == NULL)
 			oo = global_s_options;
 		else
 			oo = fs.s->options;
-		o = options_get(oo, ne->name);
+		o = options_get(oo, hd->name);
 		if (o == NULL && fs.wp != NULL) {
 			oo = fs.wp->options;
-			o = options_get(oo, ne->name);
+			o = options_get(oo, hd->name);
 		}
 		if (o == NULL && fs.wl != NULL) {
 			oo = fs.wl->window->options;
-			o = options_get(oo, ne->name);
+			o = options_get(oo, hd->name);
 		}
 	}
 	if (o == NULL) {
-		log_debug("%s: hook %s not found", __func__, ne->name);
+		log_debug("%s: hook %s not found", __func__, hd->name);
 		return;
 	}
 
 	state = cmdq_new_state(&fs, NULL, CMDQ_STATE_NOHOOKS);
-	cmdq_add_formats(state, ne->formats);
+	cmdq_add_formats(state, hd->formats);
 
-	if (*ne->name == '@') {
-		value = options_get_string(oo, ne->name);
-		pr = hooks_parse(ne, &fs, value);
+	if (*hd->name == '@') {
+		value = options_get_string(oo, hd->name);
+		pr = hooks_parse(hd, &fs, value);
 		switch (pr->status) {
 		case CMD_PARSE_ERROR:
 			log_debug("%s: can't parse hook %s: %s", __func__,
-			    ne->name, pr->error);
+			    hd->name, pr->error);
 			free(pr->error);
 			break;
 		case CMD_PARSE_SUCCESS:
-			hooks_insert_one(item, ne, pr->cmdlist, state);
+			hooks_insert_one(item, hd, pr->cmdlist, state);
 			break;
 		}
 	} else {
 		a = options_array_first(o);
 		while (a != NULL) {
-			if (ne->expand) {
+			if (hd->expand) {
 				value = options_array_item_value(a)->string;
-				pr = hooks_parse(ne, &fs, value);
+				pr = hooks_parse(hd, &fs, value);
 				switch (pr->status) {
 				case CMD_PARSE_ERROR:
 					if (pr->error != NULL)
 						cmdq_error(item, "%s", pr->error);
 					break;
 				case CMD_PARSE_SUCCESS:
-					item = hooks_insert_one(item, ne,
+					item = hooks_insert_one(item, hd,
 					    pr->cmdlist, state);
 					break;
 				}
 			} else {
 				cmdlist = options_array_item_value(a)->cmdlist;
-				item = hooks_insert_one(item, ne, cmdlist,
+				item = hooks_insert_one(item, hd, cmdlist,
 				    state);
 			}
 			a = options_array_next(a);
@@ -184,46 +188,155 @@ hooks_insert(struct cmdq_item *item, struct notify_entry *ne)
 	cmdq_free_state(state);
 }
 
+/* Add payload formats for a hook. */
+static void
+hooks_add_formats(struct format_tree *ft, const char *name,
+    struct event_payload *ep)
+{
+	struct event_payload_item	*epi;
+	struct client		*c;
+	struct session		*s;
+	struct window		*w;
+	struct window_pane	*wp;
+	char			*fname, *value;
+	const char		*key;
+	const char		*svalue;
+
+	epi = event_payload_first(ep);
+	while (epi != NULL) {
+		key = event_payload_item_name(epi);
+		if (*key != '_') {
+			value = event_payload_item_print(epi);
+			xasprintf(&fname, "hook_%s", key);
+			format_add(ft, fname, "%s", value);
+			free(fname);
+			free(value);
+		}
+		epi = event_payload_next(epi);
+	}
+
+	format_add(ft, "hook", "%s", name);
+
+	c = event_payload_get_client(ep, "client");
+	if (c != NULL)
+		format_add(ft, "hook_client", "%s", c->name);
+	s = event_payload_get_session(ep, "session");
+	if (s != NULL) {
+		format_add(ft, "hook_session", "$%u", s->id);
+		format_add(ft, "hook_session_name", "%s", s->name);
+	}
+	w = event_payload_get_window(ep, "window");
+	if (w != NULL) {
+		format_add(ft, "hook_window", "@%u", w->id);
+		format_add(ft, "hook_window_name", "%s", w->name);
+	}
+	wp = event_payload_get_pane(ep, "pane");
+	if (wp != NULL)
+		format_add(ft, "hook_pane", "%%%u", wp->id);
+	else {
+		value = event_payload_print(ep, "pane");
+		if (value != NULL) {
+			format_add(ft, "hook_pane", "%s", value);
+			free(value);
+		}
+	}
+	svalue = event_payload_get_string(ep, "value");
+	if (svalue != NULL)
+		format_add(ft, "hook_value", "%s", svalue);
+	svalue = event_payload_get_string(ep, "last");
+	if (svalue != NULL)
+		format_add(ft, "hook_last", "%s", svalue);
+}
+
+/* Find the best target state for a hook payload. */
+static void
+hooks_find_state(struct event_payload *ep, struct cmd_find_state *fs)
+{
+	struct window_pane	*wp;
+	struct winlink		*wl;
+	struct window		*w;
+	struct session		*s;
+	struct client		*c;
+	struct hook_monitor	*hm;
+
+	wp = event_payload_get_pane(ep, "pane");
+	if (wp != NULL && cmd_find_from_pane(fs, wp, 0) == 0)
+		return;
+
+	wl = event_payload_get_winlink(ep, "winlink");
+	if (wl != NULL) {
+		if (wp != NULL && wp->window == wl->window) {
+			cmd_find_from_winlink_pane(fs, wl, wp, 0);
+			return;
+		}
+		cmd_find_from_winlink(fs, wl, 0);
+		return;
+	}
+
+	s = event_payload_get_session(ep, "session");
+	w = event_payload_get_window(ep, "window");
+	if (s != NULL && w != NULL &&
+	    cmd_find_from_session_window(fs, s, w, 0) == 0)
+		return;
+
+	if (w != NULL && cmd_find_from_window(fs, w, 0) == 0)
+		return;
+
+	if (s != NULL && session_alive(s)) {
+		cmd_find_from_session(fs, s, 0);
+		return;
+	}
+
+	c = event_payload_get_client(ep, "client");
+	if (c != NULL && cmd_find_from_client(fs, c, 0) == 0)
+		return;
+
+	hm = event_payload_get_pointer(ep, "_hook_monitor");
+	if (hm != NULL && !cmd_find_empty_state(&hm->fs) &&
+	    cmd_find_valid_state(&hm->fs)) {
+		cmd_find_copy_state(fs, &hm->fs);
+		return;
+	}
+
+	if (cmd_find_from_nothing(fs, 0) != 0)
+		cmd_find_clear_state(fs, 0);
+}
+
 /* Insert commands for a hook event. */
 static void
 hooks_insert_event(struct cmdq_item *item, const char *name,
-    struct events_type *type, void *data, struct options *oo, int expand)
+    struct event_payload *ep, struct options *oo, int expand)
 {
-	struct cmd_find_state	 fs;
-	struct notify_entry	 ne;
+	struct hooks_data	 hd;
 	struct format_tree	*ft;
 	struct client		*c;
 
 	if (item != NULL && (cmdq_get_flags(item) & CMDQ_STATE_NOHOOKS))
 		return;
 
-	cmd_find_clear_state(&fs, 0);
-	if (!events_find_state(type, data, &fs) ||
-	    cmd_find_empty_state(&fs) || !cmd_find_valid_state(&fs))
-		cmd_find_from_nothing(&fs, 0);
-
-	c = events_get_client(type, data);
+	c = event_payload_get_client(ep, "client");
 	ft = format_create(c, item, FORMAT_NONE, FORMAT_NOJOBS);
-	events_add_formats(type, data, ft);
+	hooks_add_formats(ft, name, ep);
+	format_log_debug(ft, __func__);
 
-	memset(&ne, 0, sizeof ne);
-	ne.name = name;
-	cmd_find_copy_state(&ne.fs, &fs);
-	ne.formats = ft;
-	ne.oo = oo;
-	ne.client = c;
-	ne.expand = expand;
+	memset(&hd, 0, sizeof hd);
+	hd.name = name;
+	hooks_find_state(ep, &hd.fs);
+	hd.formats = ft;
+	hd.oo = oo;
+	hd.client = c;
+	hd.expand = expand;
 
-	hooks_insert(item, &ne);
+	hooks_insert(item, &hd);
 	format_free(ft);
 }
 
 /* Handle an event for hooks. */
 static void
-hooks_event_cb(const char *name, void *data, struct events_type *type,
+hooks_event_cb(const char *name, struct event_payload *ep,
     __unused void *sink_data)
 {
-	hooks_insert_event(cmdq_running(NULL), name, type, data, NULL, 0);
+	hooks_insert_event(cmdq_running(NULL), name, ep, NULL, 0);
 }
 
 /* Add a hook event sink. */
@@ -248,80 +361,18 @@ void
 hooks_run(struct cmdq_item *item, const char *name)
 {
 	struct cmd_find_state	*target = cmdq_get_target(item);
-	struct notify_entry	 ne;
+	struct hooks_data	 hd = { 0 };
 
-	memset(&ne, 0, sizeof ne);
+	hd.name = name;
+	cmd_find_copy_state(&hd.fs, target);
+	hd.client = cmdq_get_client(item);
 
-	ne.name = name;
-	cmd_find_copy_state(&ne.fs, target);
+	hd.formats = format_create(NULL, NULL, 0, FORMAT_NOJOBS);
+	format_add(hd.formats, "hook", "%s", name);
+	format_log_debug(hd.formats, __func__);
 
-	ne.client = cmdq_get_client(item);
-	ne.session = target->s;
-	ne.window = target->w;
-	ne.pane = (target->wp != NULL ? (int)target->wp->id : -1);
-
-	ne.formats = format_create(NULL, NULL, 0, FORMAT_NOJOBS);
-	format_add(ne.formats, "hook", "%s", name);
-	format_log_debug(ne.formats, __func__);
-
-	hooks_insert(item, &ne);
-	format_free(ne.formats);
-}
-
-/* Add formats for a hook monitor event. */
-static void
-hooks_monitor_event_add_formats(void *data, struct format_tree *ft)
-{
-	struct hook_monitor_event	*hme = data;
-	struct monitor_change		*change = hme->change;
-	struct window			*w;
-
-	format_add(ft, "hook", "%s", change->name);
-	format_add(ft, "hook_value", "%s",
-	    change->value == NULL ? "" : change->value);
-	format_add(ft, "hook_last", "%s",
-	    change->last == NULL ? "" : change->last);
-	if (change->s != NULL) {
-		format_add(ft, "hook_session", "$%u", change->s->id);
-		format_add(ft, "hook_session_name", "%s", change->s->name);
-	}
-	if (change->wl != NULL) {
-		w = change->wl->window;
-		format_add(ft, "hook_window", "@%u", w->id);
-		format_add(ft, "hook_window_name", "%s", w->name);
-		format_add(ft, "hook_window_index", "%d", change->wl->idx);
-	}
-	if (change->wp != NULL)
-		format_add(ft, "hook_pane", "%%%u", change->wp->id);
-}
-
-/* Find state for a hook monitor event. */
-static int
-hooks_monitor_event_find_state(void *data, struct cmd_find_state *fs)
-{
-	struct hook_monitor_event	*hme = data;
-	struct hook_monitor		*hm = hme->hm;
-	struct monitor_change		*change = hme->change;
-
-	if (change->wp != NULL && change->wl != NULL)
-		cmd_find_from_winlink_pane(fs, change->wl, change->wp, 0);
-	else if (change->wl != NULL)
-		cmd_find_from_winlink(fs, change->wl, 0);
-	else if (change->s != NULL)
-		cmd_find_from_session(fs, change->s, 0);
-	else
-		cmd_find_copy_state(fs, &hm->fs);
-	return (1);
-}
-
-/* Get client for a hook monitor event. */
-static struct client *
-hooks_monitor_event_get_client(void *data)
-{
-	struct hook_monitor_event	*hme = data;
-	struct monitor_change		*change = hme->change;
-
-	return (change->c);
+	hooks_insert(item, &hd);
+	format_free(hd.formats);
 }
 
 /* Free a hook monitor. */
@@ -356,27 +407,55 @@ hooks_monitor_remove(struct options *oo, const char *name)
 
 /* Handle a hook monitor event. */
 static void
-hooks_monitor_hook_cb(const char *name, void *data, struct events_type *type,
+hooks_monitor_hook_cb(const char *name, struct event_payload *ep,
     void *sink_data)
 {
-	struct hook_monitor_event	*hme = data;
-	struct hook_monitor		*hm = sink_data;
+	struct hook_monitor	*hm = sink_data;
 
-	if (hme->hm != hm)
-		return;
-
-	hooks_insert_event(cmdq_running(NULL), name, type, data, hm->oo, 1);
+	if (event_payload_get_pointer(ep, "_hook_monitor") == hm)
+		hooks_insert_event(cmdq_running(NULL), name, ep, hm->oo, 1);
 }
 
 /* Fire a hook monitor event. */
 static void
 hooks_monitor_cb(struct monitor_change *change, void *data)
 {
-	struct hook_monitor_event	hme;
+	struct event_payload	*ep;
+	struct winlink		*wl = change->wl;
+	struct window_pane	*wp = change->wp;
 
-	hme.hm = data;
-	hme.change = change;
-	events_fire(change->name, &hme);
+	ep = event_payload_create();
+	event_payload_set_pointer(ep, "_hook_monitor", data, NULL, NULL);
+
+	if (change->value != NULL)
+		event_payload_set_string(ep, "value", "%s", change->value);
+	else
+		event_payload_set_string(ep, "value", "%s", "");
+	if (change->last != NULL)
+		event_payload_set_string(ep, "last", "%s", change->last);
+	else
+		event_payload_set_string(ep, "last", "%s", "");
+
+	if (change->c != NULL)
+		event_payload_set_client(ep, "client", change->c);
+	if (change->s != NULL)
+		event_payload_set_session(ep, "session", change->s);
+	if (wl != NULL) {
+		if (change->s == NULL)
+			event_payload_set_session(ep, "session",
+			    wl->session);
+		event_payload_set_window(ep, "window", wl->window);
+		event_payload_set_string(ep, "window_index", "%d",
+		    wl->idx);
+		event_payload_set_winlink(ep, "winlink", wl);
+	}
+	if (wp != NULL) {
+		event_payload_set_pane(ep, "pane", wp);
+		if (wl == NULL)
+			event_payload_set_window(ep, "window", wp->window);
+	}
+
+	events_fire(change->name, ep);
 }
 
 /* Add a hook monitor. */
@@ -400,8 +479,7 @@ hooks_monitor_add(__unused struct cmdq_item *item, struct options *oo,
 	hm->id = id;
 	hm->format = xstrdup(format);
 	hm->set = monitor_create_session(s, hooks_monitor_cb, hm);
-	events_add_event(name, hooks_monitor_event_add_formats,
-	    hooks_monitor_event_find_state, hooks_monitor_event_get_client);
+	events_add_event(name);
 	hm->sink = events_add_sink(name, hooks_monitor_hook_cb, hm);
 	options_set_monitor_data(o, hm);
 	monitor_add(hm->set, name, type, id, format, 0);

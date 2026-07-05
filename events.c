@@ -26,9 +26,6 @@
 /* Event type metadata. */
 struct events_type {
 	char				*name;
-	events_add_formats_cb		 add_formats_cb;
-	events_find_state_cb		 find_state_cb;
-	events_get_client_cb		 get_client_cb;
 
 	RB_ENTRY(events_type)		 entry;
 };
@@ -96,23 +93,15 @@ events_free_dead(void)
 
 /* Add an event type. */
 int
-events_add_event(const char *name, events_add_formats_cb add_formats_cb,
-    events_find_state_cb find_state_cb, events_get_client_cb get_client_cb)
+events_add_event(const char *name)
 {
 	struct events_type	*et;
 
-	if ((et = events_find_type(name)) != NULL) {
-		et->add_formats_cb = add_formats_cb;
-		et->find_state_cb = find_state_cb;
-		et->get_client_cb = get_client_cb;
+	if ((et = events_find_type(name)) != NULL)
 		return (0);
-	}
 
 	et = xcalloc(1, sizeof *et);
 	et->name = xstrdup(name);
-	et->add_formats_cb = add_formats_cb;
-	et->find_state_cb = find_state_cb;
-	et->get_client_cb = get_client_cb;
 	RB_INSERT(events_types, &events_types, et);
 	return (0);
 }
@@ -147,45 +136,21 @@ events_remove_sink(struct events_sink *es)
 
 /* Fire an event. */
 void
-events_fire(const char *name, void *data)
+events_fire(const char *name, struct event_payload *ep)
 {
-	struct events_type	*et = events_find_type(name);
 	struct events_sink	*es;
 	u_int			 generation = events_generation;
+
+	event_payload_log(ep, "%s: %s: ", __func__, name);
 
 	events_dispatching++;
 	TAILQ_FOREACH(es, &events_sinks, entry) {
 		if (es->dead || es->generation > generation)
 			continue;
 		if (strcmp(es->name, name) == 0)
-			es->cb(name, data, et, es->data);
+			es->cb(name, ep, es->data);
 	}
 	if (--events_dispatching == 0)
 		events_free_dead();
-}
-
-/* Add event formats. */
-void
-events_add_formats(struct events_type *et, void *data, struct format_tree *ft)
-{
-	if (et != NULL && et->add_formats_cb != NULL)
-		et->add_formats_cb(data, ft);
-}
-
-/* Find event state. */
-int
-events_find_state(struct events_type *et, void *data, struct cmd_find_state *fs)
-{
-	if (et == NULL || et->find_state_cb == NULL)
-		return (0);
-	return (et->find_state_cb(data, fs));
-}
-
-/* Get event client. */
-struct client *
-events_get_client(struct events_type *et, void *data)
-{
-	if (et == NULL || et->get_client_cb == NULL)
-		return (NULL);
-	return (et->get_client_cb(data));
+	event_payload_free(ep);
 }
