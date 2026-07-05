@@ -28,25 +28,25 @@
 
 /* Event payload item. */
 struct event_payload_item {
-	char				*name;
-	enum event_payload_type		 type;
+	char					*name;
+	enum event_payload_type			 type;
 
 	union {
-		char			*string;
-		time_t			 time;
-		struct client		*client;
-		struct session		*session;
-		struct window		*window;
-		u_int			 pane;
+		char				*string;
+		time_t				 time;
+		struct client			*client;
+		struct session			*session;
+		struct window			*window;
+		u_int				 pane;
 		struct {
-			u_int		 session;
-			u_int		 window;
-			int		 idx;
+			u_int			 session;
+			u_int			 window;
+			int			 idx;
 		} winlink;
 		struct {
-			void		*ptr;
-			event_payload_free_cb free_cb;
-			event_payload_print_cb print_cb;
+			void			*ptr;
+			event_payload_free_cb	 free_cb;
+			event_payload_print_cb	 print_cb;
 		} pointer;
 	};
 
@@ -412,17 +412,15 @@ event_payload_log(struct event_payload *ep, const char *fmt, ...)
 }
 
 /* Get a time item. */
-int
-event_payload_get_time(struct event_payload *ep, const char *name,
-    time_t *value)
+time_t
+event_payload_get_time(struct event_payload *ep, const char *name)
 {
 	struct event_payload_item	*epi;
 
 	epi = event_payload_find(ep, name);
 	if (epi == NULL || epi->type != EVENT_PAYLOAD_TIME)
 		return (0);
-	*value = epi->time;
-	return (1);
+	return (epi->time);
 }
 
 /* Get a client item. */

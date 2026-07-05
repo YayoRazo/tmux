@@ -2686,29 +2686,22 @@ void	 event_payload_set_pane(struct event_payload *, const char *,
 	     struct window_pane *);
 void	 event_payload_set_winlink(struct event_payload *, const char *,
 	     struct winlink *);
-void	 event_payload_set_pointer(struct event_payload *, const char *,
-	     void *, event_payload_free_cb, event_payload_print_cb);
-const char *event_payload_get_string(struct event_payload *,
-	     const char *);
+void	 event_payload_set_pointer(struct event_payload *, const char *, void *,
+	     event_payload_free_cb, event_payload_print_cb);
+const char *event_payload_get_string(struct event_payload *, const char *);
 char	*event_payload_print(struct event_payload *, const char *);
 struct event_payload_item *event_payload_first(struct event_payload *);
 struct event_payload_item *event_payload_next(struct event_payload_item *);
 const char *event_payload_item_name(struct event_payload_item *);
 enum event_payload_type event_payload_item_type(struct event_payload_item *);
-int	 event_payload_get_time(struct event_payload *, const char *,
-	     time_t *);
-struct client *event_payload_get_client(struct event_payload *,
-	     const char *);
-struct session *event_payload_get_session(struct event_payload *,
-	     const char *);
-struct window *event_payload_get_window(struct event_payload *,
-	     const char *);
+time_t	event_payload_get_time(struct event_payload *, const char *);
+struct client *event_payload_get_client(struct event_payload *, const char *);
+struct session *event_payload_get_session(struct event_payload *, const char *);
+struct window *event_payload_get_window(struct event_payload *, const char *);
 struct window_pane *event_payload_get_pane(struct event_payload *,
 	     const char *);
-struct winlink *event_payload_get_winlink(struct event_payload *,
-	     const char *);
-void	*event_payload_get_pointer(struct event_payload *,
-	     const char *);
+struct winlink *event_payload_get_winlink(struct event_payload *, const char *);
+void	*event_payload_get_pointer(struct event_payload *, const char *);
 
 /* events.c */
 typedef void (*events_cb)(const char *, struct event_payload *, void *);
