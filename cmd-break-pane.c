@@ -101,7 +101,7 @@ cmd_break_pane_exec(struct cmd *self, struct cmdq_item *item)
 	struct session		*dst_s = target->s;
 	struct window_pane	*wp = source->wp;
 	struct window		*w = wl->window;
-	char			*newname, *cause, *cp;
+	char			*cause, *cp;
 	int			 idx = target->idx, before;
 	const char		*template, *name = args_get(args, 'n');
 
@@ -160,12 +160,11 @@ cmd_break_pane_exec(struct cmd *self, struct cmdq_item *item)
 	w->active = wp;
 	w->latest = tc;
 
-	if (name == NULL) {
-		newname = default_window_name(w);
-		window_set_name(w, newname, 0);
-		free(newname);
-	} else {
-		window_set_name(w, name, 0);
+	free(w->name);
+	if (name == NULL)
+		w->name = default_window_name(w);
+	else {
+		w->name = clean_name(name, 0);
 		options_set_number(w->options, "automatic-rename", 0);
 	}
 
