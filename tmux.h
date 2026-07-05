@@ -2346,6 +2346,8 @@ typedef void (*monitor_cb)(struct monitor_change *, void *);
 enum event_payload_type {
 	EVENT_PAYLOAD_STRING,
 	EVENT_PAYLOAD_TIME,
+	EVENT_PAYLOAD_INT,
+	EVENT_PAYLOAD_UINT,
 	EVENT_PAYLOAD_CLIENT,
 	EVENT_PAYLOAD_SESSION,
 	EVENT_PAYLOAD_WINDOW,
@@ -2676,6 +2678,8 @@ char	*event_payload_item_print(struct event_payload_item *);
 void printflike(3, 4) event_payload_set_string(struct event_payload *,
 	     const char *, const char *, ...);
 void	 event_payload_set_time(struct event_payload *, const char *, time_t);
+void	 event_payload_set_int(struct event_payload *, const char *, int);
+void	 event_payload_set_uint(struct event_payload *, const char *, u_int);
 void	 event_payload_set_client(struct event_payload *, const char *,
 	     struct client *);
 void	 event_payload_set_session(struct event_payload *, const char *,
@@ -2694,7 +2698,9 @@ struct event_payload_item *event_payload_first(struct event_payload *);
 struct event_payload_item *event_payload_next(struct event_payload_item *);
 const char *event_payload_item_name(struct event_payload_item *);
 enum event_payload_type event_payload_item_type(struct event_payload_item *);
-time_t	event_payload_get_time(struct event_payload *, const char *);
+time_t	 event_payload_get_time(struct event_payload *, const char *);
+int	 event_payload_get_int(struct event_payload *, const char *, int *);
+int	 event_payload_get_uint(struct event_payload *, const char *, u_int *);
 struct client *event_payload_get_client(struct event_payload *, const char *);
 struct session *event_payload_get_session(struct event_payload *, const char *);
 struct window *event_payload_get_window(struct event_payload *, const char *);
@@ -2705,7 +2711,6 @@ void	*event_payload_get_pointer(struct event_payload *, const char *);
 
 /* events.c */
 typedef void (*events_cb)(const char *, struct event_payload *, void *);
-int	 events_add_event(const char *);
 struct events_sink *events_add_sink(const char *, events_cb, void *);
 void	 events_remove_sink(struct events_sink *);
 void	 events_fire(const char *, struct event_payload *);
@@ -2718,7 +2723,7 @@ char	*format_trim_left(const char *, u_int);
 char	*format_trim_right(const char *, u_int);
 
 /* hooks.c */
-void	 hooks_add_event(const char *);
+void	 hooks_build_events(void);
 void	 hooks_run(struct cmdq_item *, const char *);
 void	 hooks_monitor_add(struct cmdq_item *, struct options *,
 	    const char *, enum monitor_type, int, const char *,

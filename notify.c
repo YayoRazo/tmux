@@ -37,8 +37,6 @@ notify_callback(__unused struct cmdq_item *item, void *data)
 
 	log_debug("%s: %s", __func__, ne->name);
 
-	events_add_event(ne->name);
-	hooks_add_event(ne->name);
 	events_fire(ne->name, ne->payload);
 	ne->payload = NULL;
 
@@ -95,7 +93,7 @@ notify_winlink(const char *name, struct winlink *wl)
 	ep = event_payload_create();
 	event_payload_set_session(ep, "session", wl->session);
 	event_payload_set_window(ep, "window", wl->window);
-	event_payload_set_string(ep, "window_index", "%d", wl->idx);
+	event_payload_set_int(ep, "window_index", wl->idx);
 	event_payload_set_winlink(ep, "winlink", wl);
 	notify_add(name, ep);
 }

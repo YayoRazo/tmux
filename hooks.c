@@ -260,9 +260,6 @@ hooks_find_state(struct event_payload *ep, struct cmd_find_state *fs)
 	struct hook_monitor	*hm;
 
 	wp = event_payload_get_pane(ep, "pane");
-	if (wp != NULL && cmd_find_from_pane(fs, wp, 0) == 0)
-		return;
-
 	wl = event_payload_get_winlink(ep, "winlink");
 	if (wl != NULL) {
 		if (wp != NULL && wp->window == wl->window) {
@@ -272,6 +269,9 @@ hooks_find_state(struct event_payload *ep, struct cmd_find_state *fs)
 		cmd_find_from_winlink(fs, wl, 0);
 		return;
 	}
+
+	if (wp != NULL && cmd_find_from_pane(fs, wp, 0) == 0)
+		return;
 
 	s = event_payload_get_session(ep, "session");
 	w = event_payload_get_window(ep, "window");
@@ -340,7 +340,7 @@ hooks_event_cb(const char *name, struct event_payload *ep,
 }
 
 /* Add a hook event sink. */
-void
+static void
 hooks_add_event(const char *name)
 {
 	struct hooks_event	*he;
@@ -354,6 +354,18 @@ hooks_add_event(const char *name)
 	he->name = xstrdup(name);
 	he->sink = events_add_sink(name, hooks_event_cb, NULL);
 	TAILQ_INSERT_TAIL(&hooks_events, he, entry);
+}
+
+/* Add hook event sinks for all built-in hooks. */
+void
+hooks_build_events(void)
+{
+	const struct options_table_entry	*oe;
+
+	for (oe = options_table; oe->name != NULL; oe++) {
+		if (oe->flags & OPTIONS_TABLE_IS_HOOK)
+			hooks_add_event(oe->name);
+	}
 }
 
 /* Run a hook immediately. */
@@ -445,8 +457,7 @@ hooks_monitor_cb(struct monitor_change *change, void *data)
 			event_payload_set_session(ep, "session",
 			    wl->session);
 		event_payload_set_window(ep, "window", wl->window);
-		event_payload_set_string(ep, "window_index", "%d",
-		    wl->idx);
+		event_payload_set_int(ep, "window_index", wl->idx);
 		event_payload_set_winlink(ep, "winlink", wl);
 	}
 	if (wp != NULL) {
@@ -479,7 +490,6 @@ hooks_monitor_add(__unused struct cmdq_item *item, struct options *oo,
 	hm->id = id;
 	hm->format = xstrdup(format);
 	hm->set = monitor_create_session(s, hooks_monitor_cb, hm);
-	events_add_event(name);
 	hm->sink = events_add_sink(name, hooks_monitor_hook_cb, hm);
 	options_set_monitor_data(o, hm);
 	monitor_add(hm->set, name, type, id, format, 0);

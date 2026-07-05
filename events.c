@@ -23,13 +23,6 @@
 
 #include "tmux.h"
 
-/* Event type metadata. */
-struct events_type {
-	char				*name;
-
-	RB_ENTRY(events_type)		 entry;
-};
-
 /* Event sink. */
 struct events_sink {
 	char				*name;
@@ -41,30 +34,11 @@ struct events_sink {
 	TAILQ_ENTRY(events_sink)	 entry;
 };
 
-static int
-events_type_cmp(struct events_type *et1, struct events_type *et2)
-{
-	return (strcmp(et1->name, et2->name));
-}
-RB_HEAD(events_types, events_type);
-static struct events_types events_types = RB_INITIALIZER(events_types);
-RB_GENERATE_STATIC(events_types, events_type, entry, events_type_cmp);
-
 TAILQ_HEAD(events_sinks, events_sink);
 static struct events_sinks events_sinks = TAILQ_HEAD_INITIALIZER(events_sinks);
 
 static u_int events_dispatching;
 static u_int events_generation;
-
-/* Find an event type by name. */
-static struct events_type *
-events_find_type(const char *name)
-{
-	struct events_type	find;
-
-	find.name = (char *)name;
-	return (RB_FIND(events_types, &events_types, &find));
-}
 
 /* Free an event sink. */
 static void
@@ -85,21 +59,6 @@ events_free_dead(void)
 		if (es->dead)
 			events_free_sink(es);
 	}
-}
-
-/* Add an event type. */
-int
-events_add_event(const char *name)
-{
-	struct events_type	*et;
-
-	if ((et = events_find_type(name)) != NULL)
-		return (0);
-
-	et = xcalloc(1, sizeof *et);
-	et->name = xstrdup(name);
-	RB_INSERT(events_types, &events_types, et);
-	return (0);
 }
 
 /* Add an event sink. */
@@ -137,7 +96,8 @@ events_fire(const char *name, struct event_payload *ep)
 	struct events_sink	*es;
 	u_int			 generation = events_generation;
 
-	event_payload_log(ep, "%s: %s: ", __func__, name);
+	if (log_get_level() != 0)
+		event_payload_log(ep, "%s: %s: ", __func__, name);
 
 	events_dispatching++;
 	TAILQ_FOREACH(es, &events_sinks, entry) {

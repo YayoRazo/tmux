@@ -34,6 +34,8 @@ struct event_payload_item {
 	union {
 		char				*string;
 		time_t				 time;
+		int				 number;
+		u_int				 unsigned_number;
 		struct client			*client;
 		struct session			*session;
 		struct window			*window;
@@ -80,21 +82,20 @@ event_payload_free_value(struct event_payload_item *epi)
 		free(epi->string);
 		break;
 	case EVENT_PAYLOAD_CLIENT:
-		if (epi->client != NULL)
-			server_client_unref(epi->client);
+		server_client_unref(epi->client);
 		break;
 	case EVENT_PAYLOAD_SESSION:
-		if (epi->session != NULL)
-			session_remove_ref(epi->session, __func__);
+		session_remove_ref(epi->session, __func__);
 		break;
 	case EVENT_PAYLOAD_WINDOW:
-		if (epi->window != NULL)
-			window_remove_ref(epi->window, __func__);
+		window_remove_ref(epi->window, __func__);
 		break;
 	case EVENT_PAYLOAD_POINTER:
 		if (epi->pointer.free_cb != NULL)
 			epi->pointer.free_cb(epi->pointer.ptr);
 		break;
+	case EVENT_PAYLOAD_INT:
+	case EVENT_PAYLOAD_UINT:
 	case EVENT_PAYLOAD_TIME:
 	case EVENT_PAYLOAD_PANE:
 	case EVENT_PAYLOAD_WINLINK:
@@ -179,6 +180,30 @@ event_payload_set_time(struct event_payload *ep, const char *name,
 	event_payload_set_item(ep, name, epi);
 }
 
+/* Set a number item. */
+void
+event_payload_set_int(struct event_payload *ep, const char *name, int value)
+{
+	struct event_payload_item	*epi;
+
+	epi = xcalloc(1, sizeof *epi);
+	epi->type = EVENT_PAYLOAD_INT;
+	epi->number = value;
+	event_payload_set_item(ep, name, epi);
+}
+
+/* Set an unsigned number item. */
+void
+event_payload_set_uint(struct event_payload *ep, const char *name, u_int value)
+{
+	struct event_payload_item	*epi;
+
+	epi = xcalloc(1, sizeof *epi);
+	epi->type = EVENT_PAYLOAD_UINT;
+	epi->unsigned_number = value;
+	event_payload_set_item(ep, name, epi);
+}
+
 /* Set a client item. */
 void
 event_payload_set_client(struct event_payload *ep, const char *name,
@@ -186,8 +211,7 @@ event_payload_set_client(struct event_payload *ep, const char *name,
 {
 	struct event_payload_item	*epi;
 
-	if (c != NULL)
-		c->references++;
+	c->references++;
 
 	epi = xcalloc(1, sizeof *epi);
 	epi->type = EVENT_PAYLOAD_CLIENT;
@@ -202,8 +226,7 @@ event_payload_set_session(struct event_payload *ep, const char *name,
 {
 	struct event_payload_item	*epi;
 
-	if (s != NULL)
-		session_add_ref(s, __func__);
+	session_add_ref(s, __func__);
 
 	epi = xcalloc(1, sizeof *epi);
 	epi->type = EVENT_PAYLOAD_SESSION;
@@ -218,8 +241,7 @@ event_payload_set_window(struct event_payload *ep, const char *name,
 {
 	struct event_payload_item	*epi;
 
-	if (w != NULL)
-		window_add_ref(w, __func__);
+	window_add_ref(w, __func__);
 
 	epi = xcalloc(1, sizeof *epi);
 	epi->type = EVENT_PAYLOAD_WINDOW;
@@ -292,6 +314,12 @@ event_payload_add_item(struct event_payload_item *epi, struct evbuffer *evb)
 		break;
 	case EVENT_PAYLOAD_TIME:
 		evbuffer_add_printf(evb, "%lld", (long long)epi->time);
+		break;
+	case EVENT_PAYLOAD_INT:
+		evbuffer_add_printf(evb, "%d", epi->number);
+		break;
+	case EVENT_PAYLOAD_UINT:
+		evbuffer_add_printf(evb, "%u", epi->unsigned_number);
 		break;
 	case EVENT_PAYLOAD_CLIENT:
 		if (epi->client != NULL)
@@ -421,6 +449,32 @@ event_payload_get_time(struct event_payload *ep, const char *name)
 	if (epi == NULL || epi->type != EVENT_PAYLOAD_TIME)
 		return (0);
 	return (epi->time);
+}
+
+/* Get a number item. */
+int
+event_payload_get_int(struct event_payload *ep, const char *name, int *value)
+{
+	struct event_payload_item	*epi;
+
+	epi = event_payload_find(ep, name);
+	if (epi == NULL || epi->type != EVENT_PAYLOAD_INT)
+		return (-1);
+	*value = epi->number;
+	return (0);
+}
+
+/* Get an unsigned number item. */
+int
+event_payload_get_uint(struct event_payload *ep, const char *name, u_int *value)
+{
+	struct event_payload_item	*epi;
+
+	epi = event_payload_find(ep, name);
+	if (epi == NULL || epi->type != EVENT_PAYLOAD_UINT)
+		return (-1);
+	*value = epi->unsigned_number;
+	return (0);
 }
 
 /* Get a client item. */
