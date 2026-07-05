@@ -96,7 +96,6 @@ notify_winlink(const char *name, struct winlink *wl)
 	event_payload_set_session(ep, "session", wl->session);
 	event_payload_set_window(ep, "window", wl->window);
 	event_payload_set_string(ep, "window_index", "%d", wl->idx);
-	/* XXX winlink is not refcounted; store session/window IDs and index. */
 	event_payload_set_winlink(ep, "winlink", wl);
 	notify_add(name, ep);
 }
@@ -128,7 +127,6 @@ notify_pane(const char *name, struct window_pane *wp)
 	struct event_payload	*ep;
 
 	ep = event_payload_create();
-	/* XXX window_pane is not refcounted; store pane ID for now. */
 	event_payload_set_pane(ep, "pane", wp);
 	event_payload_set_window(ep, "window", wp->window);
 	notify_add(name, ep);
