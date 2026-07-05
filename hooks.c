@@ -283,7 +283,11 @@ static void
 hooks_event_cb(const char *name, struct event_payload *ep,
     __unused void *sink_data)
 {
-	hooks_insert_event(cmdq_running(NULL), name, ep, NULL, 0);
+	struct cmdq_item	*item;
+
+	item = cmdq_running(NULL);
+	if (item == NULL || (~cmdq_get_flags(item) & CMDQ_STATE_NOHOOKS))
+		hooks_insert_event(NULL, name, ep, NULL, 0);
 }
 
 /* Add a hook event sink. */

@@ -202,6 +202,7 @@ server_kill_window(struct window *w, int renumber)
 	struct session	*s, *s1;
 	struct winlink	*wl;
 
+	window_add_ref(w, __func__);
 	RB_FOREACH_SAFE(s, sessions, &sessions, s1) {
 		if (!session_has(s, w))
 			continue;
@@ -219,6 +220,7 @@ server_kill_window(struct window *w, int renumber)
 			server_renumber_session(s);
 	}
 	recalculate_sizes();
+	window_remove_ref(w, __func__);
 }
 
 void
