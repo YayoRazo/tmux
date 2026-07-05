@@ -2676,6 +2676,10 @@ void	 event_payload_free(struct event_payload *);
 void printflike(2, 3) event_payload_log(struct event_payload *, const char *,
 	     ...);
 char	*event_payload_item_print(struct event_payload_item *);
+void	 event_payload_set_target(struct event_payload *,
+	     struct cmd_find_state *);
+int	 event_payload_get_target(struct event_payload *,
+	     struct cmd_find_state *);
 void printflike(3, 4) event_payload_set_string(struct event_payload *,
 	     const char *, const char *, ...);
 void	 event_payload_set_time(struct event_payload *, const char *, time_t);

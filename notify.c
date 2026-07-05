@@ -69,8 +69,11 @@ void
 notify_client(const char *name, struct client *c)
 {
 	struct event_payload	*ep;
+	struct cmd_find_state	 fs;
 
 	ep = event_payload_create();
+	cmd_find_from_client(&fs, c, 0);
+	event_payload_set_target(ep, &fs);
 	event_payload_set_client(ep, "client", c);
 	notify_add(name, ep);
 }
@@ -79,8 +82,13 @@ void
 notify_session(const char *name, struct session *s)
 {
 	struct event_payload	*ep;
+	struct cmd_find_state	 fs;
 
 	ep = event_payload_create();
+	if (session_alive(s)) {
+		cmd_find_from_session(&fs, s, 0);
+		event_payload_set_target(ep, &fs);
+	}
 	event_payload_set_session(ep, "session", s);
 	notify_add(name, ep);
 }
@@ -89,8 +97,11 @@ void
 notify_winlink(const char *name, struct winlink *wl)
 {
 	struct event_payload	*ep;
+	struct cmd_find_state	 fs;
 
 	ep = event_payload_create();
+	cmd_find_from_winlink(&fs, wl, 0);
+	event_payload_set_target(ep, &fs);
 	event_payload_set_session(ep, "session", wl->session);
 	event_payload_set_window(ep, "window", wl->window);
 	event_payload_set_int(ep, "window_index", wl->idx);
@@ -101,8 +112,13 @@ void
 notify_session_window(const char *name, struct session *s, struct window *w)
 {
 	struct event_payload	*ep;
+	struct cmd_find_state	 fs;
 
 	ep = event_payload_create();
+	if (session_alive(s)) {
+		cmd_find_from_session_window(&fs, s, w, 0);
+		event_payload_set_target(ep, &fs);
+	}
 	event_payload_set_session(ep, "session", s);
 	event_payload_set_window(ep, "window", w);
 	notify_add(name, ep);
@@ -112,8 +128,11 @@ void
 notify_window(const char *name, struct window *w)
 {
 	struct event_payload	*ep;
+	struct cmd_find_state	 fs;
 
 	ep = event_payload_create();
+	cmd_find_from_window(&fs, w, 0);
+	event_payload_set_target(ep, &fs);
 	event_payload_set_window(ep, "window", w);
 	notify_add(name, ep);
 }
@@ -122,8 +141,11 @@ void
 notify_pane(const char *name, struct window_pane *wp)
 {
 	struct event_payload	*ep;
+	struct cmd_find_state	 fs;
 
 	ep = event_payload_create();
+	cmd_find_from_pane(&fs, wp, 0);
+	event_payload_set_target(ep, &fs);
 	event_payload_set_pane(ep, "pane", wp);
 	event_payload_set_window(ep, "window", wp->window);
 	notify_add(name, ep);

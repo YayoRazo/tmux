@@ -248,63 +248,6 @@ hooks_add_formats(struct format_tree *ft, const char *name,
 		format_add(ft, "hook_last", "%s", svalue);
 }
 
-/* Find the best target state for a hook payload. */
-static void
-hooks_find_state(struct event_payload *ep, struct cmd_find_state *fs)
-{
-	struct session		*s = event_payload_get_session(ep, "session");
-	struct window		*w = event_payload_get_window(ep, "window");
-	struct window_pane	*wp = event_payload_get_pane(ep, "pane");
-	struct winlink		*wl;
-	struct client		*c;
-	struct hook_monitor	*hm;
-	int			 idx;
-
-	if (s != NULL &&
-	    w != NULL &&
-	    event_payload_get_int(ep, "window_index", &idx) == 0) {
-		wl = winlink_find_by_index(&s->windows, idx);
-		if (wl != NULL && wl->window == w) {
-			if (wp != NULL && wp->window == wl->window) {
-				cmd_find_from_winlink_pane(fs, wl, wp, 0);
-				return;
-			}
-			cmd_find_from_winlink(fs, wl, 0);
-			return;
-		}
-	}
-
-	if (wp != NULL && cmd_find_from_pane(fs, wp, 0) == 0)
-		return;
-
-	if (s != NULL &&
-	    w != NULL &&
-	    cmd_find_from_session_window(fs, s, w, 0) == 0)
-		return;
-
-	if (w != NULL && cmd_find_from_window(fs, w, 0) == 0)
-		return;
-
-	if (s != NULL && session_alive(s)) {
-		cmd_find_from_session(fs, s, 0);
-		return;
-	}
-
-	c = event_payload_get_client(ep, "client");
-	if (c != NULL && cmd_find_from_client(fs, c, 0) == 0)
-		return;
-
-	hm = event_payload_get_pointer(ep, "_hook_monitor");
-	if (hm != NULL && !cmd_find_empty_state(&hm->fs) &&
-	    cmd_find_valid_state(&hm->fs)) {
-		cmd_find_copy_state(fs, &hm->fs);
-		return;
-	}
-
-	if (cmd_find_from_nothing(fs, 0) != 0)
-		cmd_find_clear_state(fs, 0);
-}
-
 /* Insert commands for a hook event. */
 static void
 hooks_insert_event(struct cmdq_item *item, const char *name,
@@ -324,7 +267,8 @@ hooks_insert_event(struct cmdq_item *item, const char *name,
 
 	memset(&hd, 0, sizeof hd);
 	hd.name = name;
-	hooks_find_state(ep, &hd.fs);
+	cmd_find_clear_state(&hd.fs, 0);
+	event_payload_get_target(ep, &hd.fs);
 	hd.formats = ft;
 	hd.oo = oo;
 	hd.client = c;
@@ -435,12 +379,27 @@ hooks_monitor_hook_cb(const char *name, struct event_payload *ep,
 static void
 hooks_monitor_cb(struct monitor_change *change, void *data)
 {
+	struct hook_monitor	*hm = data;
 	struct event_payload	*ep;
 	struct winlink		*wl = change->wl;
 	struct window_pane	*wp = change->wp;
+	struct cmd_find_state	 fs;
 
 	ep = event_payload_create();
 	event_payload_set_pointer(ep, "_hook_monitor", data, NULL, NULL);
+
+	cmd_find_clear_state(&fs, 0);
+	if (wl != NULL && wp != NULL && wp->window == wl->window)
+		cmd_find_from_winlink_pane(&fs, wl, wp, 0);
+	else if (wl != NULL)
+		cmd_find_from_winlink(&fs, wl, 0);
+	else if (wp != NULL)
+		cmd_find_from_pane(&fs, wp, 0);
+	else if (change->s != NULL)
+		cmd_find_from_session(&fs, change->s, 0);
+	else
+		cmd_find_copy_state(&fs, &hm->fs);
+	event_payload_set_target(ep, &fs);
 
 	if (change->value != NULL)
 		event_payload_set_string(ep, "value", "%s", change->value);

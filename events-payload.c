@@ -50,14 +50,21 @@ struct event_payload_item {
 	RB_ENTRY(event_payload_item)	 entry;
 };
 
+RB_HEAD(event_payload_tree, event_payload_item);
+
+struct event_payload {
+	struct event_payload_tree	 items;
+	struct cmd_find_state		 target;
+};
+
 static int
 event_payload_cmp(struct event_payload_item *epi1,
     struct event_payload_item *epi2)
 {
 	return (strcmp(epi1->name, epi2->name));
 }
-RB_HEAD(event_payload, event_payload_item);
-RB_GENERATE_STATIC(event_payload, event_payload_item, entry, event_payload_cmp);
+RB_GENERATE_STATIC(event_payload_tree, event_payload_item, entry,
+    event_payload_cmp);
 
 /* Find an item. */
 static struct event_payload_item *
@@ -65,7 +72,23 @@ event_payload_find(struct event_payload *ep, const char *name)
 {
 	struct event_payload_item	find = { .name = (char *)name };
 
-	return (RB_FIND(event_payload, ep, &find));
+	return (RB_FIND(event_payload_tree, &ep->items, &find));
+}
+
+/* Free the target in a payload. */
+static void
+event_payload_free_target(struct event_payload *ep)
+{
+	struct cmd_find_state	*target = &ep->target;
+
+	if (target->s != NULL)
+		session_remove_ref(target->s, __func__);
+	if (target->w != NULL)
+		window_remove_ref(target->w, __func__);
+	if (target->wp != NULL)
+		window_pane_remove_ref(target->wp, __func__);
+
+	cmd_find_clear_state(target, 0);
 }
 
 /* Free the value in an item. */
@@ -107,13 +130,13 @@ event_payload_set_item(struct event_payload *ep, const char *name,
 	struct event_payload_item	*old;
 
 	new->name = xstrdup(name);
-	old = RB_INSERT(event_payload, ep, new);
+	old = RB_INSERT(event_payload_tree, &ep->items, new);
 	if (old != NULL) {
-		RB_REMOVE(event_payload, ep, old);
+		RB_REMOVE(event_payload_tree, &ep->items, old);
 		event_payload_free_value(old);
 		free(old->name);
 		free(old);
-		RB_INSERT(event_payload, ep, new);
+		RB_INSERT(event_payload_tree, &ep->items, new);
 	}
 }
 
@@ -124,7 +147,8 @@ event_payload_create(void)
 	struct event_payload	*ep;
 
 	ep = xcalloc(1, sizeof *ep);
-	RB_INIT(ep);
+	RB_INIT(&ep->items);
+	cmd_find_clear_state(&ep->target, 0);
 	return (ep);
 }
 
@@ -135,14 +159,113 @@ event_payload_free(struct event_payload *ep)
 	struct event_payload_item	*epi, *epi1;
 
 	if (ep != NULL) {
-		RB_FOREACH_SAFE(epi, event_payload, ep, epi1) {
-			RB_REMOVE(event_payload, ep, epi);
+		RB_FOREACH_SAFE(epi, event_payload_tree, &ep->items, epi1) {
+			RB_REMOVE(event_payload_tree, &ep->items, epi);
 			event_payload_free_value(epi);
 			free(epi->name);
 			free(epi);
 		}
+		event_payload_free_target(ep);
 		free(ep);
 	}
+}
+
+/* Set the target. */
+void
+event_payload_set_target(struct event_payload *ep, struct cmd_find_state *fs)
+{
+	struct cmd_find_state	*target = &ep->target;
+
+	event_payload_free_target(ep);
+
+	if (fs->s != NULL) {
+		session_add_ref(fs->s, __func__);
+		target->s = fs->s;
+	}
+	if (fs->wl != NULL) {
+		target->idx = fs->wl->idx;
+		if (target->s == NULL) {
+			session_add_ref(fs->wl->session, __func__);
+			target->s = fs->wl->session;
+		}
+	} else
+		target->idx = -1;
+	if (fs->w != NULL) {
+		window_add_ref(fs->w, __func__);
+		target->w = fs->w;
+	} else if (fs->wl != NULL) {
+		window_add_ref(fs->wl->window, __func__);
+		target->w = fs->wl->window;
+	}
+	if (fs->wp != NULL) {
+		window_pane_add_ref(fs->wp, __func__);
+		target->wp = fs->wp;
+	}
+}
+
+/* Get the target. */
+int
+event_payload_get_target(struct event_payload *ep, struct cmd_find_state *fs)
+{
+	struct cmd_find_state	*t = &ep->target;
+	struct winlink		*wl = NULL;
+	int			 flags = fs->flags;
+
+	if (t->idx != -1 &&
+	    t->s != NULL &&
+	    t->w != NULL &&
+	    session_alive(t->s)) {
+		wl = winlink_find_by_index(&t->s->windows, t->idx);
+		if (wl != NULL && wl->window != t->w)
+			wl = NULL;
+	}
+
+	cmd_find_clear_state(fs, flags);
+	fs->s = t->s;
+	fs->w = t->w;
+	fs->wp = t->wp;
+	fs->wl = wl;
+	fs->idx = (wl != NULL ? wl->idx : -1);
+	if (cmd_find_valid_state(fs))
+		return (1);
+
+	if (wl != NULL &&
+	    t->wp != NULL &&
+	    window_has_pane(wl->window, t->wp)) {
+		cmd_find_from_winlink_pane(fs, wl, t->wp, flags);
+		if (cmd_find_valid_state(fs))
+			return (1);
+	}
+
+	if (t->wp != NULL &&
+	    cmd_find_from_pane(fs, t->wp, flags) == 0 &&
+	    cmd_find_valid_state(fs))
+		return (1);
+
+	if (wl != NULL) {
+		cmd_find_from_winlink(fs, wl, flags);
+		if (cmd_find_valid_state(fs))
+			return (1);
+	}
+
+	if (t->s != NULL &&
+	    t->w != NULL &&
+	    session_alive(t->s) &&
+	    cmd_find_from_session_window(fs, t->s, t->w, flags) == 0 &&
+	    cmd_find_valid_state(fs))
+		return (1);
+
+	if (t->s != NULL && session_alive(t->s)) {
+		cmd_find_from_session(fs, t->s, flags);
+		if (cmd_find_valid_state(fs))
+			return (1);
+	}
+
+	if (cmd_find_from_nothing(fs, flags) == 0)
+		return (1);
+
+	cmd_find_clear_state(fs, flags);
+	return (0);
 }
 
 /* Set a string item. */
@@ -361,14 +484,14 @@ event_payload_print(struct event_payload *ep, const char *name)
 struct event_payload_item *
 event_payload_first(struct event_payload *ep)
 {
-	return (RB_MIN(event_payload, ep));
+	return (RB_MIN(event_payload_tree, &ep->items));
 }
 
 /* Get the next payload item. */
 struct event_payload_item *
 event_payload_next(struct event_payload_item *epi)
 {
-	return (RB_NEXT(event_payload, , epi));
+	return (RB_NEXT(event_payload_tree, , epi));
 }
 
 /* Get a payload item name. */
@@ -402,7 +525,7 @@ event_payload_log(struct event_payload *ep, const char *fmt, ...)
 	if (evb == NULL)
 		fatalx("out of memory");
 	if (ep != NULL) {
-		RB_FOREACH(epi, event_payload, ep) {
+		RB_FOREACH(epi, event_payload_tree, &ep->items) {
 			if (EVBUFFER_LENGTH(evb) != 0)
 				evbuffer_add_printf(evb, ", ");
 			evbuffer_add_printf(evb, "%s=", epi->name);
