@@ -41,11 +41,17 @@ struct notify_monitor {
 	struct options		*oo;
 
 	struct monitor_set	*set;
+	struct events_sink	*sink;
 	struct cmd_find_state	 fs;
 
 	enum monitor_type	 type;
 	int			 id;
 	char			*format;
+};
+
+struct notify_monitor_event {
+	struct notify_monitor	*nhm;
+	struct monitor_change	*change;
 };
 
 static struct cmdq_item *
@@ -238,6 +244,7 @@ notify_monitor_free(void *data)
 {
 	struct notify_monitor	*nhm = data;
 
+	events_remove_sink(nhm->sink);
 	monitor_destroy(nhm->set);
 	free(nhm->format);
 	free(nhm);
@@ -261,12 +268,18 @@ notify_monitor_remove(struct options *oo, const char *name)
 }
 
 static void
-notify_monitor_cb(struct monitor_change *change, void *data)
+notify_monitor_hook_cb(__unused const char *name, void *data,
+    __unused const struct events_type *type, void *sink_data)
 {
-	struct notify_monitor	*nhm = data;
+	struct notify_monitor_event	*nme = data;
+	struct notify_monitor		*nhm = sink_data;
+	struct monitor_change		*change = nme->change;
 	struct notify_entry		 ne;
 	struct cmdq_item		*item;
 	struct window			*w;
+
+	if (nme->nhm != nhm)
+		return;
 
 	item = cmdq_running(NULL);
 	if (item != NULL && (cmdq_get_flags(item) & CMDQ_STATE_NOHOOKS))
@@ -308,6 +321,16 @@ notify_monitor_cb(struct monitor_change *change, void *data)
 	format_free(ne.formats);
 }
 
+static void
+notify_monitor_cb(struct monitor_change *change, void *data)
+{
+	struct notify_monitor_event	nme;
+
+	nme.nhm = data;
+	nme.change = change;
+	events_fire(change->name, &nme);
+}
+
 void
 notify_monitor_add(__unused struct cmdq_item *item, struct options *oo,
     const char *name, enum monitor_type type, int id, const char *format,
@@ -328,6 +351,8 @@ notify_monitor_add(__unused struct cmdq_item *item, struct options *oo,
 	nhm->id = id;
 	nhm->format = xstrdup(format);
 	nhm->set = monitor_create_session(s, notify_monitor_cb, nhm);
+	events_add_event(name, NULL, NULL);
+	nhm->sink = events_add_sink(name, notify_monitor_hook_cb, nhm);
 	options_set_monitor_data(o, nhm);
 	monitor_add(nhm->set, name, type, id, format, 0);
 }

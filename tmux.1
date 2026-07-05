@@ -8549,14 +8549,19 @@ or the current pane if omitted) after the command finishes.
 If the command fails, the exit status is also displayed.
 .Tg wait
 .It Xo Ic wait\-for
-.Op Fl L | S | U
-.Ar channel
+.Op Fl E | L | S | U
+.Ar channel | event\-name
 .Xc
 .D1 Pq alias: Ic wait
 When used without options, prevents the client from exiting until woken using
 .Ic wait\-for
 .Fl S
 with the same channel.
+When
+.Fl E
+is used,
+.Nm
+waits for the next event with the given name.
 When
 .Fl L
 is used, the channel is locked and any clients that try to lock the same

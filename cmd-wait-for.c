@@ -34,8 +34,8 @@ const struct cmd_entry cmd_wait_for_entry = {
 	.name = "wait-for",
 	.alias = "wait",
 
-	.args = { "LSU", 1, 1, NULL },
-	.usage = "[-L|-S|-U] channel",
+	.args = { "ELSU", 1, 1, NULL },
+	.usage = "[-E|-L|-S|-U] channel",
 
 	.flags = 0,
 	.exec = cmd_wait_for_exec
@@ -45,6 +45,14 @@ struct wait_item {
 	struct cmdq_item	*item;
 	TAILQ_ENTRY(wait_item)	 entry;
 };
+
+struct wait_event_item {
+	struct cmdq_item		*item;
+	struct events_sink		*sink;
+	TAILQ_ENTRY(wait_event_item)	 entry;
+};
+static TAILQ_HEAD(, wait_event_item) wait_event_items =
+    TAILQ_HEAD_INITIALIZER(wait_event_items);
 
 struct wait_channel {
 	const char	       *name;
@@ -76,6 +84,9 @@ static enum cmd_retval	cmd_wait_for_lock(struct cmdq_item *, const char *,
 			    struct wait_channel *);
 static enum cmd_retval	cmd_wait_for_unlock(struct cmdq_item *, const char *,
 			    struct wait_channel *);
+static enum cmd_retval	cmd_wait_for_event(struct cmdq_item *, const char *);
+static void		cmd_wait_for_event_cb(const char *, void *,
+			    const struct events_type *, void *);
 
 static struct wait_channel	*cmd_wait_for_add(const char *);
 static void			 cmd_wait_for_remove(struct wait_channel *);
@@ -124,6 +135,16 @@ cmd_wait_for_exec(struct cmd *self, struct cmdq_item *item)
 	const char		*name = args_string(args, 0);
 	struct wait_channel	*wc, find;
 
+	if (args_has(args, 'E') &&
+	    (args_has(args, 'L') || args_has(args, 'S') ||
+	     args_has(args, 'U'))) {
+		cmdq_error(item, "-E cannot be used with -L, -S or -U");
+		return (CMD_RETURN_ERROR);
+	}
+
+	if (args_has(args, 'E'))
+		return (cmd_wait_for_event(item, name));
+
 	find.name = name;
 	wc = RB_FIND(wait_channels, &wait_channels, &find);
 
@@ -134,6 +155,36 @@ cmd_wait_for_exec(struct cmd *self, struct cmdq_item *item)
 	if (args_has(args, 'U'))
 		return (cmd_wait_for_unlock(item, name, wc));
 	return (cmd_wait_for_wait(item, name, wc));
+}
+
+static void
+cmd_wait_for_event_cb(__unused const char *name, __unused void *data,
+    __unused const struct events_type *type, void *item_data)
+{
+	struct wait_event_item	*wei = item_data;
+
+	TAILQ_REMOVE(&wait_event_items, wei, entry);
+	events_remove_sink(wei->sink);
+	cmdq_continue(wei->item);
+	free(wei);
+}
+
+static enum cmd_retval
+cmd_wait_for_event(struct cmdq_item *item, const char *name)
+{
+	struct wait_event_item	*wei;
+
+	if (cmdq_get_client(item) == NULL) {
+		cmdq_error(item, "not able to wait");
+		return (CMD_RETURN_ERROR);
+	}
+
+	wei = xcalloc(1, sizeof *wei);
+	wei->item = item;
+	wei->sink = events_add_sink(name, cmd_wait_for_event_cb, wei);
+	TAILQ_INSERT_TAIL(&wait_event_items, wei, entry);
+
+	return (CMD_RETURN_WAIT);
 }
 
 static enum cmd_retval
@@ -245,6 +296,14 @@ cmd_wait_for_flush(void)
 {
 	struct wait_channel	*wc, *wc1;
 	struct wait_item	*wi, *wi1;
+	struct wait_event_item	*wei, *wei1;
+
+	TAILQ_FOREACH_SAFE(wei, &wait_event_items, entry, wei1) {
+		TAILQ_REMOVE(&wait_event_items, wei, entry);
+		events_remove_sink(wei->sink);
+		cmdq_continue(wei->item);
+		free(wei);
+	}
 
 	RB_FOREACH_SAFE(wc, wait_channels, &wait_channels, wc1) {
 		TAILQ_FOREACH_SAFE(wi, &wc->waiters, entry, wi1) {

@@ -159,6 +159,7 @@ dist_tmux_SOURCES = \
 	control-notify.c \
 	control.c \
 	environ.c \
+	events.c \
 	file.c \
 	format.c \
 	format-draw.c \
