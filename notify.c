@@ -94,7 +94,6 @@ notify_winlink(const char *name, struct winlink *wl)
 	event_payload_set_session(ep, "session", wl->session);
 	event_payload_set_window(ep, "window", wl->window);
 	event_payload_set_int(ep, "window_index", wl->idx);
-	event_payload_set_winlink(ep, "winlink", wl);
 	notify_add(name, ep);
 }
 

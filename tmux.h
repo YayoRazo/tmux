@@ -2352,7 +2352,6 @@ enum event_payload_type {
 	EVENT_PAYLOAD_SESSION,
 	EVENT_PAYLOAD_WINDOW,
 	EVENT_PAYLOAD_PANE,
-	EVENT_PAYLOAD_WINLINK,
 	EVENT_PAYLOAD_POINTER
 };
 
@@ -2688,8 +2687,6 @@ void	 event_payload_set_window(struct event_payload *, const char *,
 	     struct window *);
 void	 event_payload_set_pane(struct event_payload *, const char *,
 	     struct window_pane *);
-void	 event_payload_set_winlink(struct event_payload *, const char *,
-	     struct winlink *);
 void	 event_payload_set_pointer(struct event_payload *, const char *, void *,
 	     event_payload_free_cb, event_payload_print_cb);
 const char *event_payload_get_string(struct event_payload *, const char *);
@@ -2706,7 +2703,6 @@ struct session *event_payload_get_session(struct event_payload *, const char *);
 struct window *event_payload_get_window(struct event_payload *, const char *);
 struct window_pane *event_payload_get_pane(struct event_payload *,
 	     const char *);
-struct winlink *event_payload_get_winlink(struct event_payload *, const char *);
 void	*event_payload_get_pointer(struct event_payload *, const char *);
 
 /* events.c */

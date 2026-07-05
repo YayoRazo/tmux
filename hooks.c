@@ -252,30 +252,33 @@ hooks_add_formats(struct format_tree *ft, const char *name,
 static void
 hooks_find_state(struct event_payload *ep, struct cmd_find_state *fs)
 {
-	struct window_pane	*wp;
+	struct session		*s = event_payload_get_session(ep, "session");
+	struct window		*w = event_payload_get_window(ep, "window");
+	struct window_pane	*wp = event_payload_get_pane(ep, "pane");
 	struct winlink		*wl;
-	struct window		*w;
-	struct session		*s;
 	struct client		*c;
 	struct hook_monitor	*hm;
+	int			 idx;
 
-	wp = event_payload_get_pane(ep, "pane");
-	wl = event_payload_get_winlink(ep, "winlink");
-	if (wl != NULL) {
-		if (wp != NULL && wp->window == wl->window) {
-			cmd_find_from_winlink_pane(fs, wl, wp, 0);
+	if (s != NULL &&
+	    w != NULL &&
+	    event_payload_get_int(ep, "window_index", &idx) == 0) {
+		wl = winlink_find_by_index(&s->windows, idx);
+		if (wl != NULL && wl->window == w) {
+			if (wp != NULL && wp->window == wl->window) {
+				cmd_find_from_winlink_pane(fs, wl, wp, 0);
+				return;
+			}
+			cmd_find_from_winlink(fs, wl, 0);
 			return;
 		}
-		cmd_find_from_winlink(fs, wl, 0);
-		return;
 	}
 
 	if (wp != NULL && cmd_find_from_pane(fs, wp, 0) == 0)
 		return;
 
-	s = event_payload_get_session(ep, "session");
-	w = event_payload_get_window(ep, "window");
-	if (s != NULL && w != NULL &&
+	if (s != NULL &&
+	    w != NULL &&
 	    cmd_find_from_session_window(fs, s, w, 0) == 0)
 		return;
 
@@ -458,7 +461,6 @@ hooks_monitor_cb(struct monitor_change *change, void *data)
 			    wl->session);
 		event_payload_set_window(ep, "window", wl->window);
 		event_payload_set_int(ep, "window_index", wl->idx);
-		event_payload_set_winlink(ep, "winlink", wl);
 	}
 	if (wp != NULL) {
 		event_payload_set_pane(ep, "pane", wp);

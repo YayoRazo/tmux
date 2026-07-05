@@ -41,11 +41,6 @@ struct event_payload_item {
 		struct window			*window;
 		u_int				 pane;
 		struct {
-			u_int			 session;
-			u_int			 window;
-			int			 idx;
-		} winlink;
-		struct {
 			void			*ptr;
 			event_payload_free_cb	 free_cb;
 			event_payload_print_cb	 print_cb;
@@ -98,7 +93,6 @@ event_payload_free_value(struct event_payload_item *epi)
 	case EVENT_PAYLOAD_UINT:
 	case EVENT_PAYLOAD_TIME:
 	case EVENT_PAYLOAD_PANE:
-	case EVENT_PAYLOAD_WINLINK:
 		break;
 	}
 }
@@ -262,21 +256,6 @@ event_payload_set_pane(struct event_payload *ep, const char *name,
 	event_payload_set_item(ep, name, epi);
 }
 
-/* Set a winlink item. */
-void
-event_payload_set_winlink(struct event_payload *ep, const char *name,
-    struct winlink *wl)
-{
-	struct event_payload_item	*epi;
-
-	epi = xcalloc(1, sizeof *epi);
-	epi->type = EVENT_PAYLOAD_WINLINK;
-	epi->winlink.session = wl->session->id;
-	epi->winlink.window = wl->window->id;
-	epi->winlink.idx = wl->idx;
-	event_payload_set_item(ep, name, epi);
-}
-
 /* Set a pointer item. */
 void
 event_payload_set_pointer(struct event_payload *ep, const char *name,
@@ -335,10 +314,6 @@ event_payload_add_item(struct event_payload_item *epi, struct evbuffer *evb)
 		break;
 	case EVENT_PAYLOAD_PANE:
 		evbuffer_add_printf(evb, "%%%u", epi->pane);
-		break;
-	case EVENT_PAYLOAD_WINLINK:
-		evbuffer_add_printf(evb, "$%u:%d", epi->winlink.session,
-		    epi->winlink.idx);
 		break;
 	case EVENT_PAYLOAD_POINTER:
 		if (epi->pointer.print_cb != NULL)
@@ -523,26 +498,6 @@ event_payload_get_pane(struct event_payload *ep, const char *name)
 	if (epi == NULL || epi->type != EVENT_PAYLOAD_PANE)
 		return (NULL);
 	return (window_pane_find_by_id(epi->pane));
-}
-
-/* Get a winlink item. */
-struct winlink *
-event_payload_get_winlink(struct event_payload *ep, const char *name)
-{
-	struct event_payload_item	*epi;
-	struct session			*s;
-	struct winlink			*wl;
-
-	epi = event_payload_find(ep, name);
-	if (epi == NULL || epi->type != EVENT_PAYLOAD_WINLINK)
-		return (NULL);
-	s = session_find_by_id(epi->winlink.session);
-	if (s == NULL)
-		return (NULL);
-	wl = winlink_find_by_index(&s->windows, epi->winlink.idx);
-	if (wl == NULL || wl->window->id != epi->winlink.window)
-		return (NULL);
-	return (wl);
 }
 
 /* Get a pointer item. */
