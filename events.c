@@ -41,8 +41,11 @@ struct events_sink {
 	TAILQ_ENTRY(events_sink)	 entry;
 };
 
-static int events_type_cmp(struct events_type *, struct events_type *);
-
+static int
+events_type_cmp(struct events_type *et1, struct events_type *et2)
+{
+	return (strcmp(et1->name, et2->name));
+}
 RB_HEAD(events_types, events_type);
 static struct events_types events_types = RB_INITIALIZER(events_types);
 RB_GENERATE_STATIC(events_types, events_type, entry, events_type_cmp);
@@ -52,13 +55,6 @@ static struct events_sinks events_sinks = TAILQ_HEAD_INITIALIZER(events_sinks);
 
 static u_int events_dispatching;
 static u_int events_generation;
-
-/* Compare event types. */
-static int
-events_type_cmp(struct events_type *et1, struct events_type *et2)
-{
-	return (strcmp(et1->name, et2->name));
-}
 
 /* Find an event type by name. */
 static struct events_type *
