@@ -39,7 +39,7 @@ struct event_payload_item {
 		struct client			*client;
 		struct session			*session;
 		struct window			*window;
-		u_int				 pane;
+		struct window_pane		*pane;
 		struct {
 			void			*ptr;
 			event_payload_free_cb	 free_cb;
@@ -85,6 +85,9 @@ event_payload_free_value(struct event_payload_item *epi)
 	case EVENT_PAYLOAD_WINDOW:
 		window_remove_ref(epi->window, __func__);
 		break;
+	case EVENT_PAYLOAD_PANE:
+		window_pane_remove_ref(epi->pane, __func__);
+		break;
 	case EVENT_PAYLOAD_POINTER:
 		if (epi->pointer.free_cb != NULL)
 			epi->pointer.free_cb(epi->pointer.ptr);
@@ -92,7 +95,6 @@ event_payload_free_value(struct event_payload_item *epi)
 	case EVENT_PAYLOAD_INT:
 	case EVENT_PAYLOAD_UINT:
 	case EVENT_PAYLOAD_TIME:
-	case EVENT_PAYLOAD_PANE:
 		break;
 	}
 }
@@ -250,9 +252,11 @@ event_payload_set_pane(struct event_payload *ep, const char *name,
 {
 	struct event_payload_item	*epi;
 
+	window_pane_add_ref(wp, __func__);
+
 	epi = xcalloc(1, sizeof *epi);
 	epi->type = EVENT_PAYLOAD_PANE;
-	epi->pane = wp->id;
+	epi->pane = wp;
 	event_payload_set_item(ep, name, epi);
 }
 
@@ -301,19 +305,16 @@ event_payload_add_item(struct event_payload_item *epi, struct evbuffer *evb)
 		evbuffer_add_printf(evb, "%u", epi->unsigned_number);
 		break;
 	case EVENT_PAYLOAD_CLIENT:
-		if (epi->client != NULL)
-			evbuffer_add_printf(evb, "%s", epi->client->name);
+		evbuffer_add_printf(evb, "%s", epi->client->name);
 		break;
 	case EVENT_PAYLOAD_SESSION:
-		if (epi->session != NULL)
-			evbuffer_add_printf(evb, "$%u", epi->session->id);
+		evbuffer_add_printf(evb, "$%u", epi->session->id);
 		break;
 	case EVENT_PAYLOAD_WINDOW:
-		if (epi->window != NULL)
-			evbuffer_add_printf(evb, "@%u", epi->window->id);
+		evbuffer_add_printf(evb, "@%u", epi->window->id);
 		break;
 	case EVENT_PAYLOAD_PANE:
-		evbuffer_add_printf(evb, "%%%u", epi->pane);
+		evbuffer_add_printf(evb, "%%%u", epi->pane->id);
 		break;
 	case EVENT_PAYLOAD_POINTER:
 		if (epi->pointer.print_cb != NULL)
@@ -497,7 +498,7 @@ event_payload_get_pane(struct event_payload *ep, const char *name)
 	epi = event_payload_find(ep, name);
 	if (epi == NULL || epi->type != EVENT_PAYLOAD_PANE)
 		return (NULL);
-	return (window_pane_find_by_id(epi->pane));
+	return (epi->pane);
 }
 
 /* Get a pointer item. */
