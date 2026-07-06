@@ -953,7 +953,7 @@ layout_resize_layout(struct window *w, struct layout_cell *lc,
 	/* Fix cell offsets. */
 	layout_fix_offsets(w);
 	layout_fix_panes(w, NULL);
-	notify_window("window-layout-changed", w);
+	events_fire_window("window-layout-changed", w);
 }
 
 /* Resize a single pane within the layout. */
@@ -1498,7 +1498,7 @@ layout_close_pane(struct window_pane *wp)
 		layout_fix_offsets(w);
 		layout_fix_panes(w, NULL);
 	}
-	notify_window("window-layout-changed", w);
+	events_fire_window("window-layout-changed", w);
 }
 
 /* Spread out cells inside a parent cell. */

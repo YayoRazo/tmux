@@ -88,6 +88,8 @@ cmd_select_pane_exec(struct cmd *self, struct cmdq_item *item)
 	struct cmd_find_state	*current = cmdq_get_current(item);
 	struct cmd_find_state	*target = cmdq_get_target(item);
 	struct client		*c = cmdq_get_client(item);
+	struct event_payload	*ep;
+	struct cmd_find_state	 fs;
 	struct winlink		*wl = target->wl;
 	struct window		*w = wl->window;
 	struct session		*s = target->s;
@@ -218,7 +220,13 @@ cmd_select_pane_exec(struct cmd *self, struct cmdq_item *item)
 	if (args_has(args, 'T')) {
 		title = format_single_from_target(item, args_get(args, 'T'));
 		if (screen_set_title(&wp->base, title, 0)) {
-			notify_pane("pane-title-changed", wp);
+			ep = event_payload_create();
+			cmd_find_from_pane(&fs, wp, 0);
+			event_payload_set_target(ep, &fs);
+			event_payload_set_pane(ep, "pane", wp);
+			event_payload_set_window(ep, "window", wp->window);
+			event_payload_set_string(ep, "new_title", "%s", title);
+			events_fire("pane-title-changed", ep);
 			server_redraw_window_borders(wp->window);
 			server_status_window(wp->window);
 		}

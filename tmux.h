@@ -2716,6 +2716,11 @@ typedef void (*events_cb)(const char *, struct event_payload *, void *);
 struct events_sink *events_add_sink(const char *, events_cb, void *);
 void	 events_remove_sink(struct events_sink *);
 void	 events_fire(const char *, struct event_payload *);
+void	 events_fire_client(const char *, struct client *);
+void	 events_fire_session(const char *, struct session *);
+void	 events_fire_window(const char *, struct window *);
+void	 events_fire_pane(const char *, struct window_pane *);
+void	 events_fire_winlink(const char *, struct winlink *);
 
 /* format-draw.c */
 void	 format_draw(struct screen_write_ctx *, const struct grid_cell *,
@@ -2733,15 +2738,6 @@ void	 hooks_monitor_add(struct cmdq_item *, struct options *,
 void	 hooks_monitor_remove(struct options *, const char *);
 void	 hooks_monitor_free(void *);
 char	*hooks_monitor_to_string(struct options_entry *);
-
-/* notify.c */
-void	notify_client(const char *, struct client *);
-void	notify_session(const char *, struct session *);
-void	notify_winlink(const char *, struct winlink *);
-void	notify_session_window(const char *, struct session *, struct window *);
-void	notify_window(const char *, struct window *);
-void	notify_pane(const char *, struct window_pane *);
-void	notify_paste_buffer(const char *, int);
 
 /* options.c */
 struct options	*options_create(struct options *);

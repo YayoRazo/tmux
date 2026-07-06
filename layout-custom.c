@@ -286,7 +286,7 @@ layout_parse(struct window *w, const char *layout, char **cause)
 	recalculate_sizes();
 	layout_print_cell(tiled_lc, __func__, 0);
 
-	notify_window("window-layout-changed", w);
+	events_fire_window("window-layout-changed", w);
 
 	return (0);
 

@@ -131,7 +131,7 @@ spawn_window(struct spawn_context *sc, char **cause)
 			 * if this makes it empty.
 			 */
 			wl->flags &= ~WINLINK_ALERTFLAGS;
-			notify_session_window("window-unlinked", s, wl->window);
+			events_fire_winlink("window-unlinked", wl);
 			winlink_stack_remove(&s->lastw, wl);
 			winlink_remove(&s->windows, wl);
 
@@ -191,7 +191,7 @@ spawn_window(struct spawn_context *sc, char **cause)
 
 	/* Fire notification if new window. */
 	if (~sc->flags & SPAWN_RESPAWN)
-		notify_session_window("window-linked", s, w);
+		events_fire_winlink("window-linked", sc->wl);
 
 	session_group_synchronize_from(s);
 	return (sc->wl);
@@ -531,7 +531,7 @@ complete:
 			window_set_active_pane(w, new_wp, 1);
 	}
 	if (~sc->flags & SPAWN_NONOTIFY)
-		notify_window("window-layout-changed", w);
+		events_fire_window("window-layout-changed", w);
 	return (new_wp);
 }
 

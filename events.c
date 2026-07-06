@@ -110,3 +110,88 @@ events_fire(const char *name, struct event_payload *ep)
 		events_free_dead();
 	event_payload_free(ep);
 }
+
+/* Fire a client event. */
+void
+events_fire_client(const char *name, struct client *c)
+{
+	struct event_payload	*ep;
+	struct cmd_find_state	 fs;
+
+	ep = event_payload_create();
+	cmd_find_from_client(&fs, c, 0);
+	event_payload_set_target(ep, &fs);
+	event_payload_set_client(ep, "client", c);
+	if (fs.s != NULL)
+		event_payload_set_session(ep, "session", fs.s);
+	if (fs.w != NULL)
+		event_payload_set_window(ep, "window", fs.w);
+	if (fs.wl != NULL)
+		event_payload_set_int(ep, "window_index", fs.wl->idx);
+	else if (fs.idx != -1)
+		event_payload_set_int(ep, "window_index", fs.idx);
+	if (fs.wp != NULL)
+		event_payload_set_pane(ep, "pane", fs.wp);
+	events_fire(name, ep);
+}
+
+/* Fire a session event. */
+void
+events_fire_session(const char *name, struct session *s)
+{
+	struct event_payload	*ep;
+	struct cmd_find_state	 fs;
+
+	ep = event_payload_create();
+	if (session_alive(s)) {
+		cmd_find_from_session(&fs, s, 0);
+		event_payload_set_target(ep, &fs);
+	}
+	event_payload_set_session(ep, "session", s);
+	events_fire(name, ep);
+}
+
+/* Fire a window event. */
+void
+events_fire_window(const char *name, struct window *w)
+{
+	struct event_payload	*ep;
+	struct cmd_find_state	 fs;
+
+	ep = event_payload_create();
+	cmd_find_from_window(&fs, w, 0);
+	event_payload_set_target(ep, &fs);
+	event_payload_set_window(ep, "window", w);
+	events_fire(name, ep);
+}
+
+/* Fire a pane event. */
+void
+events_fire_pane(const char *name, struct window_pane *wp)
+{
+	struct event_payload	*ep;
+	struct cmd_find_state	 fs;
+
+	ep = event_payload_create();
+	cmd_find_from_pane(&fs, wp, 0);
+	event_payload_set_target(ep, &fs);
+	event_payload_set_pane(ep, "pane", wp);
+	event_payload_set_window(ep, "window", wp->window);
+	events_fire(name, ep);
+}
+
+/* Fire a winlink event. */
+void
+events_fire_winlink(const char *name, struct winlink *wl)
+{
+	struct event_payload	*ep;
+	struct cmd_find_state	 fs;
+
+	ep = event_payload_create();
+	cmd_find_from_winlink(&fs, wl, 0);
+	event_payload_set_target(ep, &fs);
+	event_payload_set_session(ep, "session", wl->session);
+	event_payload_set_window(ep, "window", wl->window);
+	event_payload_set_int(ep, "window_index", wl->idx);
+	events_fire(name, ep);
+}

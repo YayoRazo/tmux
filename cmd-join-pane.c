@@ -185,7 +185,7 @@ cmd_join_pane_place(struct cmdq_item *item, struct winlink *wl,
 		lc->yoff = yoff;
 		layout_fix_panes(w, NULL);
 	}
-	notify_window("window-layout-changed", w);
+	events_fire_window("window-layout-changed", w);
 	server_redraw_window(w);
 
 	return (CMD_RETURN_NORMAL);
@@ -255,7 +255,7 @@ cmd_join_pane_move(struct cmdq_item *item, struct args *args,
 		lc->xoff = xoff;
 		lc->yoff = yoff;
 		layout_fix_panes(w, NULL);
-		notify_window("window-layout-changed", w);
+		events_fire_window("window-layout-changed", w);
 		server_redraw_window(w);
 	}
 
@@ -357,7 +357,7 @@ cmd_join_pane_zindex(struct cmdq_item *item, struct winlink *wl,
 	else
 		TAILQ_INSERT_TAIL(&w->z_index, wp, zentry);
 
-	notify_window("window-layout-changed", w);
+	events_fire_window("window-layout-changed", w);
 	server_redraw_window(w);
 
 	return (CMD_RETURN_NORMAL);
@@ -395,7 +395,7 @@ cmd_join_pane_tile(struct cmdq_item *item, struct args *args, struct window *w,
 		window_set_active_pane(w, wp, 1);
 	layout_fix_offsets(w);
 	layout_fix_panes(w, NULL);
-	notify_window("window-layout-changed", w);
+	events_fire_window("window-layout-changed", w);
 	server_redraw_window(w);
 
 	return (CMD_RETURN_NORMAL);
@@ -499,8 +499,8 @@ cmd_join_pane_exec(struct cmd *self, struct cmdq_item *item)
 	if (window_count_panes(src_w, 1) == 0)
 		server_kill_window(src_w, 1);
 	else
-		notify_window("window-layout-changed", src_w);
-	notify_window("window-layout-changed", dst_w);
+		events_fire_window("window-layout-changed", src_w);
+	events_fire_window("window-layout-changed", dst_w);
 
 	return (CMD_RETURN_NORMAL);
 }
