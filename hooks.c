@@ -144,7 +144,12 @@ hooks_insert(struct cmdq_item *item, struct hooks_data *hd)
 		return;
 	}
 
-	state = cmdq_new_state(&fs, NULL, CMDQ_STATE_NOHOOKS);
+	if (item == NULL)
+		state = cmdq_new_state(&fs, NULL, CMDQ_STATE_NOHOOKS);
+	else {
+		state = cmdq_new_state(&fs, cmdq_get_event(item),
+		    CMDQ_STATE_NOHOOKS);
+	}
 	cmdq_add_formats(state, hd->formats);
 
 	if (*hd->name == '@') {
@@ -168,8 +173,10 @@ hooks_insert(struct cmdq_item *item, struct hooks_data *hd)
 				pr = hooks_parse(hd, &fs, value);
 				switch (pr->status) {
 				case CMD_PARSE_ERROR:
-					if (pr->error != NULL)
-						cmdq_error(item, "%s", pr->error);
+					if (pr->error != NULL) {
+						cmdq_error(item, "%s",
+						    pr->error);
+					}
 					break;
 				case CMD_PARSE_SUCCESS:
 					item = hooks_insert_one(item, hd,
@@ -284,6 +291,12 @@ hooks_event_cb(const char *name, struct event_payload *ep,
     __unused void *sink_data)
 {
 	struct cmdq_item	*item;
+
+	item = event_payload_get_pointer(ep, "_cmdq_item");
+	if (item != NULL) {
+		hooks_insert_event(item, name, ep, NULL, 0);
+		return;
+	}
 
 	item = cmdq_running(NULL);
 	if (item == NULL || (~cmdq_get_flags(item) & CMDQ_STATE_NOHOOKS))
