@@ -2697,6 +2697,8 @@ void	 event_payload_set_pointer(struct event_payload *, const char *, void *,
 	     event_payload_free_cb, event_payload_print_cb);
 const char *event_payload_get_string(struct event_payload *, const char *);
 char	*event_payload_print(struct event_payload *, const char *);
+void	 event_payload_add_formats(struct event_payload *,
+	     struct format_tree *, const char *);
 struct event_payload_item *event_payload_first(struct event_payload *);
 struct event_payload_item *event_payload_next(struct event_payload_item *);
 const char *event_payload_item_name(struct event_payload_item *);

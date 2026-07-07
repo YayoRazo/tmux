@@ -195,66 +195,6 @@ hooks_insert(struct cmdq_item *item, struct hooks_data *hd)
 	cmdq_free_state(state);
 }
 
-/* Add payload formats for a hook. */
-static void
-hooks_add_formats(struct format_tree *ft, const char *name,
-    struct event_payload *ep)
-{
-	struct event_payload_item	*epi;
-	struct client		*c;
-	struct session		*s;
-	struct window		*w;
-	struct window_pane	*wp;
-	char			*fname, *value;
-	const char		*key;
-	const char		*svalue;
-
-	epi = event_payload_first(ep);
-	while (epi != NULL) {
-		key = event_payload_item_name(epi);
-		if (*key != '_') {
-			value = event_payload_item_print(epi);
-			xasprintf(&fname, "hook_%s", key);
-			format_add(ft, fname, "%s", value);
-			free(fname);
-			free(value);
-		}
-		epi = event_payload_next(epi);
-	}
-
-	format_add(ft, "hook", "%s", name);
-
-	c = event_payload_get_client(ep, "client");
-	if (c != NULL)
-		format_add(ft, "hook_client", "%s", c->name);
-	s = event_payload_get_session(ep, "session");
-	if (s != NULL) {
-		format_add(ft, "hook_session", "$%u", s->id);
-		format_add(ft, "hook_session_name", "%s", s->name);
-	}
-	w = event_payload_get_window(ep, "window");
-	if (w != NULL) {
-		format_add(ft, "hook_window", "@%u", w->id);
-		format_add(ft, "hook_window_name", "%s", w->name);
-	}
-	wp = event_payload_get_pane(ep, "pane");
-	if (wp != NULL)
-		format_add(ft, "hook_pane", "%%%u", wp->id);
-	else {
-		value = event_payload_print(ep, "pane");
-		if (value != NULL) {
-			format_add(ft, "hook_pane", "%s", value);
-			free(value);
-		}
-	}
-	svalue = event_payload_get_string(ep, "value");
-	if (svalue != NULL)
-		format_add(ft, "hook_value", "%s", svalue);
-	svalue = event_payload_get_string(ep, "last");
-	if (svalue != NULL)
-		format_add(ft, "hook_last", "%s", svalue);
-}
-
 /* Insert commands for a hook event. */
 static void
 hooks_insert_event(struct cmdq_item *item, const char *name,
@@ -269,7 +209,8 @@ hooks_insert_event(struct cmdq_item *item, const char *name,
 
 	c = event_payload_get_client(ep, "client");
 	ft = format_create(c, item, FORMAT_NONE, FORMAT_NOJOBS);
-	hooks_add_formats(ft, name, ep);
+	event_payload_add_formats(ep, ft, "hook_");
+	format_add(ft, "hook", "%s", name);
 	format_log_debug(ft, __func__);
 
 	memset(&hd, 0, sizeof hd);

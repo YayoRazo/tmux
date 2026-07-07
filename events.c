@@ -96,6 +96,8 @@ events_fire(const char *name, struct event_payload *ep)
 	struct events_sink	*es;
 	u_int			 generation = events_generation;
 
+	event_payload_set_string(ep, "event", "%s", name);
+
 	if (log_get_level() != 0)
 		event_payload_log(ep, "%s: %s: ", __func__, name);
 

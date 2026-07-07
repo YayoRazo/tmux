@@ -34,8 +34,8 @@ const struct cmd_entry cmd_wait_for_entry = {
 	.name = "wait-for",
 	.alias = "wait",
 
-	.args = { "ELSU", 1, 1, NULL },
-	.usage = "[-E|-L|-S|-U] channel",
+	.args = { "EF:LSUv", 1, 1, NULL },
+	.usage = "[-ELSUv] [-F format] channel",
 
 	.flags = 0,
 	.exec = cmd_wait_for_exec
@@ -49,6 +49,8 @@ struct wait_item {
 struct wait_event_item {
 	struct cmdq_item		*item;
 	struct events_sink		*sink;
+	char				*filter;
+	int				 verbose;
 	TAILQ_ENTRY(wait_event_item)	 entry;
 };
 static TAILQ_HEAD(, wait_event_item) wait_event_items =
@@ -84,7 +86,8 @@ static enum cmd_retval	cmd_wait_for_lock(struct cmdq_item *, const char *,
 			    struct wait_channel *);
 static enum cmd_retval	cmd_wait_for_unlock(struct cmdq_item *, const char *,
 			    struct wait_channel *);
-static enum cmd_retval	cmd_wait_for_event(struct cmdq_item *, const char *);
+static enum cmd_retval	cmd_wait_for_event(struct cmdq_item *, const char *,
+			    struct args *);
 static void		cmd_wait_for_event_cb(const char *,
 			    struct event_payload *, void *);
 
@@ -131,23 +134,14 @@ cmd_wait_for_remove(struct wait_channel *wc)
 static enum cmd_retval
 cmd_wait_for_exec(struct cmd *self, struct cmdq_item *item)
 {
-	struct args     	*args = cmd_get_args(self);
+	struct args		*args = cmd_get_args(self);
 	const char		*name = args_string(args, 0);
-	struct wait_channel	*wc, find;
-
-	if (args_has(args, 'E') &&
-	    (args_has(args, 'L') || args_has(args, 'S') ||
-	     args_has(args, 'U'))) {
-		cmdq_error(item, "-E cannot be used with -L, -S or -U");
-		return (CMD_RETURN_ERROR);
-	}
+	struct wait_channel	*wc, find = { .name = name };
 
 	if (args_has(args, 'E'))
-		return (cmd_wait_for_event(item, name));
+		return (cmd_wait_for_event(item, name, args));
 
-	find.name = name;
 	wc = RB_FIND(wait_channels, &wait_channels, &find);
-
 	if (args_has(args, 'S'))
 		return (cmd_wait_for_signal(item, name, wc));
 	if (args_has(args, 'L'))
@@ -158,21 +152,61 @@ cmd_wait_for_exec(struct cmd *self, struct cmdq_item *item)
 }
 
 static void
-cmd_wait_for_event_cb(__unused const char *name,
-    __unused struct event_payload *ep, void *item_data)
+cmd_wait_for_event_print(struct wait_event_item *wei, struct event_payload *ep)
+{
+	struct event_payload_item	*epi;
+	const char			*key;
+	char				*value;
+
+	epi = event_payload_first(ep);
+	while (epi != NULL) {
+		key = event_payload_item_name(epi);
+		if (*key != '_') {
+			value = event_payload_item_print(epi);
+			cmdq_print(wei->item, "%s=%s", key, value);
+			free(value);
+		}
+		epi = event_payload_next(epi);
+	}
+}
+
+static void
+cmd_wait_for_event_cb(const char *name, struct event_payload *ep,
+    void *item_data)
 {
 	struct wait_event_item	*wei = item_data;
+	struct format_tree	*ft;
+	char			*expanded;
+	int			 flag;
+
+	if (wei->verbose)
+		cmd_wait_for_event_print(wei, ep);
+
+	if (wei->filter != NULL) {
+		ft = format_create(cmdq_get_client(wei->item), wei->item,
+		    FORMAT_NONE, FORMAT_NOJOBS);
+		event_payload_add_formats(ep, ft, NULL);
+		expanded = format_expand(ft, wei->filter);
+		flag = format_true(expanded);
+		free(expanded);
+		format_free(ft);
+
+		if (!flag)
+			return;
+	}
 
 	TAILQ_REMOVE(&wait_event_items, wei, entry);
 	events_remove_sink(wei->sink);
 	cmdq_continue(wei->item);
+	free(wei->filter);
 	free(wei);
 }
 
 static enum cmd_retval
-cmd_wait_for_event(struct cmdq_item *item, const char *name)
+cmd_wait_for_event(struct cmdq_item *item, const char *name, struct args *args)
 {
 	struct wait_event_item	*wei;
+	const char		*filter = args_get(args, 'F');
 
 	if (cmdq_get_client(item) == NULL) {
 		cmdq_error(item, "not able to wait");
@@ -181,6 +215,8 @@ cmd_wait_for_event(struct cmdq_item *item, const char *name)
 
 	wei = xcalloc(1, sizeof *wei);
 	wei->item = item;
+	wei->filter = (filter != NULL ? xstrdup(filter) : NULL);
+	wei->verbose = args_has(args, 'v');
 	wei->sink = events_add_sink(name, cmd_wait_for_event_cb, wei);
 	TAILQ_INSERT_TAIL(&wait_event_items, wei, entry);
 
@@ -302,6 +338,7 @@ cmd_wait_for_flush(void)
 		TAILQ_REMOVE(&wait_event_items, wei, entry);
 		events_remove_sink(wei->sink);
 		cmdq_continue(wei->item);
+		free(wei->filter);
 		free(wei);
 	}
 

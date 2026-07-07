@@ -480,6 +480,41 @@ event_payload_print(struct event_payload *ep, const char *name)
 	return (event_payload_item_print(epi));
 }
 
+/* Add payload items as formats. */
+void
+event_payload_add_formats(struct event_payload *ep, struct format_tree *ft,
+    const char *prefix)
+{
+	struct event_payload_item	*epi;
+	char				*name, *value;
+	const char			*key;
+
+	if (prefix == NULL)
+		prefix = "";
+
+	RB_FOREACH(epi, event_payload_tree, &ep->items) {
+		key = epi->name;
+		if (*key == '_')
+			continue;
+
+		value = event_payload_item_print(epi);
+		xasprintf(&name, "%s%s", prefix, key);
+		format_add(ft, name, "%s", value);
+		free(name);
+		free(value);
+
+		if (epi->type == EVENT_PAYLOAD_SESSION) {
+			xasprintf(&name, "%s%s_name", prefix, key);
+			format_add(ft, name, "%s", epi->session->name);
+			free(name);
+		} else if (epi->type == EVENT_PAYLOAD_WINDOW) {
+			xasprintf(&name, "%s%s_name", prefix, key);
+			format_add(ft, name, "%s", epi->window->name);
+			free(name);
+		}
+	}
+}
+
 /* Get the first payload item. */
 struct event_payload_item *
 event_payload_first(struct event_payload *ep)

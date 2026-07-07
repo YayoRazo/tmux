@@ -94,6 +94,34 @@ $TMUX set -g @wf_value 2 || fail "set @wf_value 2 failed"
 wait_channel wf-late
 wait "$late_pid" || fail "late wait-for -E command failed"
 
+$TMUX set -g @filtered 0 || fail "set @filtered failed"
+$TMUX wait-for -E -F '#{==:#{value},3}' @wf \; set -g @filtered 1 \; \
+	wait-for -S wf-filtered &
+filtered_pid=$!
+assert_unchanged @filtered 0 5
+
+$TMUX set -g @wf_value unmatched || fail "set @wf_value unmatched failed"
+assert_unchanged @filtered 0 5
+
+$TMUX set -g @wf_value 3 || fail "set @wf_value 3 failed"
+wait_channel wf-filtered
+wait "$filtered_pid" || fail "filtered wait-for -E command failed"
+
+verbose_file="$OUT/verbose"
+$TMUX wait-for -E -v @wf \; wait-for -S wf-verbose >"$verbose_file" &
+verbose_pid=$!
+
+sleep 0.5
+$TMUX set -g @wf_value 4 || fail "set @wf_value 4 failed"
+wait_channel wf-verbose
+wait "$verbose_pid" || fail "verbose wait-for -E command failed"
+grep '^event=@wf$' "$verbose_file" >/dev/null ||
+	fail "verbose wait-for -E did not print event payload"
+grep '^value=4$' "$verbose_file" >/dev/null ||
+	fail "verbose wait-for -E did not print value payload"
+grep '^_hook_monitor=' "$verbose_file" >/dev/null &&
+	fail "verbose wait-for -E printed private payload"
+
 $TMUX new -d -s wf2 || fail "new-session wf2 failed"
 
 $TMUX wait-for -E window-renamed \; wait-for -S wf-renamed &
