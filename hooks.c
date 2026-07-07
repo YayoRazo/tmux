@@ -233,6 +233,9 @@ hooks_event_cb(const char *name, struct event_payload *ep,
 {
 	struct cmdq_item	*item;
 
+	if (event_payload_get_pointer(ep, "_hook_monitor") != NULL)
+		return;
+
 	item = event_payload_get_pointer(ep, "_cmdq_item");
 	if (item != NULL) {
 		hooks_insert_event(item, name, ep, NULL, 0);
