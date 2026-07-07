@@ -31,6 +31,8 @@ static enum args_parse_type	cmd_set_option_args_parse(struct args *,
 				    u_int, char **);
 static enum cmd_retval		cmd_set_option_exec(struct cmd *,
 				    struct cmdq_item *);
+static enum cmd_retval		cmd_set_hook_event_exec(struct cmd *,
+				    struct cmdq_item *);
 static enum cmd_retval		cmd_set_hook_monitor_exec(struct cmdq_item *,
 				    struct args *, int);
 
@@ -64,8 +66,8 @@ const struct cmd_entry cmd_set_hook_entry = {
 	.name = "set-hook",
 	.alias = NULL,
 
-	.args = { "agpRt:uB:w", 0, 2, cmd_set_option_args_parse },
-	.usage = "[-agpRuw] [-B name:what:format] " CMD_TARGET_PANE_USAGE " "
+	.args = { "agpERt:uB:w", 0, 2, cmd_set_option_args_parse },
+	.usage = "[-agpERuw] [-B name:what:format] " CMD_TARGET_PANE_USAGE " "
 		 "[hook] [command]",
 
 	.target = { 't', CMD_FIND_PANE, CMD_FIND_CANFAIL },
@@ -83,6 +85,51 @@ cmd_set_option_args_parse(struct args *args, u_int idx,
 	if (idx == 1)
 		return (ARGS_PARSE_COMMANDS_OR_STRING);
 	return (ARGS_PARSE_STRING);
+}
+
+static enum cmd_retval
+cmd_set_hook_event_exec(struct cmd *self, struct cmdq_item *item)
+{
+	struct args		*args = cmd_get_args(self);
+	struct cmd_find_state	*target = cmdq_get_target(item);
+	struct event_payload	*ep;
+	struct client		*c;
+	char			*argument;
+
+	if (args_count(args) == 0) {
+		cmdq_error(item, "missing argument");
+		return (CMD_RETURN_ERROR);
+	}
+	if (args_count(args) != 1) {
+		cmdq_error(item, "too many arguments");
+		return (CMD_RETURN_ERROR);
+	}
+
+	argument = format_single_from_target(item, args_string(args, 0));
+	if (*argument != '@') {
+		cmdq_error(item, "event name must start with @");
+		free(argument);
+		return (CMD_RETURN_ERROR);
+	}
+
+	ep = event_payload_create();
+	event_payload_set_target(ep, target);
+	c = cmdq_get_client(item);
+	if (c != NULL)
+		event_payload_set_client(ep, "client", c);
+	if (target->s != NULL)
+		event_payload_set_session(ep, "session", target->s);
+	if (target->w != NULL)
+		event_payload_set_window(ep, "window", target->w);
+	if (target->wl != NULL)
+		event_payload_set_int(ep, "window_index", target->wl->idx);
+	else if (target->idx != -1)
+		event_payload_set_int(ep, "window_index", target->idx);
+	if (target->wp != NULL)
+		event_payload_set_pane(ep, "pane", target->wp);
+	events_fire(argument, ep);
+	free(argument);
+	return (CMD_RETURN_NORMAL);
 }
 
 static enum cmd_retval
@@ -185,6 +232,8 @@ cmd_set_option_exec(struct cmd *self, struct cmdq_item *item)
 	int				 scope;
 
 	window = (cmd_get_entry(self) == &cmd_set_window_option_entry);
+	if (cmd_get_entry(self) == &cmd_set_hook_entry && args_has(args, 'E'))
+		return (cmd_set_hook_event_exec(self, item));
 	if (cmd_get_entry(self) == &cmd_set_hook_entry && args_has(args, 'B'))
 		return (cmd_set_hook_monitor_exec(item, args, window));
 	if (args_count(args) == 0) {
@@ -289,6 +338,8 @@ cmd_set_option_exec(struct cmd *self, struct cmdq_item *item)
 			goto fail;
 		}
 		options_set_string(oo, name, append, "%s", value);
+		if (cmd_get_entry(self) == &cmd_set_hook_entry)
+			hooks_add_event(name);
 	} else if (array_key == NULL && !options_is_array(parent)) {
 		error = options_from_string(oo, options_table_entry(parent),
 		    options_table_entry(parent)->name, value,

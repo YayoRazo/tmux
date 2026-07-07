@@ -245,7 +245,7 @@ hooks_event_cb(const char *name, struct event_payload *ep,
 }
 
 /* Add a hook event sink. */
-static void
+void
 hooks_add_event(const char *name)
 {
 	struct hooks_event	*he;
