@@ -67,7 +67,45 @@ assert_unchanged()
 	done
 }
 
+wait_list()
+{
+	event=$1
+	name=$2
+	i=0
+
+	while [ $i -lt 50 ]; do
+		if [ "$event" = 1 ]; then
+			value=$($TMUX wait-for -E -l "$name" 2>/dev/null || true)
+		else
+			value=$($TMUX wait-for -l "$name" 2>/dev/null || true)
+		fi
+		if [ -n "$value" ]; then
+			printf '%s\n' "$value" | sed -n '1p'
+			return
+		fi
+		i=$((i + 1))
+		sleep 0.2
+	done
+	fail "wait-for -l $name found no waiters"
+}
+
 $TMUX new -d -s wf || fail "new-session failed"
+
+$TMUX wait-for wf-list &
+list_pid=$!
+client=$(wait_list 0 wf-list)
+$TMUX wait-for -w "$client" wf-list || fail "wait-for -w wf-list failed"
+wait "$list_pid" || fail "wait-for -w did not wake channel waiter"
+
+$TMUX set -g @forced 0 || fail "set @forced failed"
+$TMUX wait-for -E @forced-event \; set -g @forced 1 &
+forced_pid=$!
+client=$(wait_list 1 @forced-event)
+$TMUX wait-for -E -w "$client" @forced-event ||
+	fail "wait-for -E -w @forced-event failed"
+wait "$forced_pid" || fail "wait-for -E -w did not wake event waiter"
+[ "$($TMUX show -gqv @forced)" = 1 ] ||
+	fail "wait-for -E -w did not continue event waiter"
 
 $TMUX set -g @wf_value 0 || fail "set @wf_value failed"
 $TMUX set-hook -g -B '@wf::#{@wf_value}' 'wait-for -S wf-hook' ||
