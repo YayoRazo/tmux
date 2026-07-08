@@ -71,6 +71,45 @@ spawn_log(const char *from, struct spawn_context *sc)
 	log_debug("%s: s=$%u %s idx=%d", from, s->id, tmp, sc->idx);
 }
 
+static void
+spawn_fire_pane_created(struct spawn_context *sc, struct window_pane *wp)
+{
+	struct event_payload	*ep;
+	struct cmd_find_state	 fs;
+	char			*cmd = NULL;
+	const char		*cwd = wp->cwd;
+
+	ep = event_payload_create();
+	cmd_find_from_winlink_pane(&fs, sc->wl, wp, 0);
+	event_payload_set_target(ep, &fs);
+	event_payload_set_session(ep, "session", sc->s);
+	event_payload_set_window(ep, "window", wp->window);
+	event_payload_set_int(ep, "window_index", sc->wl->idx);
+	event_payload_set_pane(ep, "pane", wp);
+
+	if (wp->argc != 0)
+		cmd = cmd_stringify_argv(wp->argc, wp->argv);
+	if (cmd != NULL && *cmd != '\0')
+		event_payload_set_string(ep, "pane_command", "%s", cmd);
+	else if (wp->shell != NULL)
+		event_payload_set_string(ep, "pane_command", "%s", wp->shell);
+	free(cmd);
+
+	if (cwd != NULL)
+		event_payload_set_string(ep, "pane_current_path", "%s", cwd);
+
+	if (sc->flags & SPAWN_EMPTY)
+		event_payload_set_int(ep, "created_empty", 1);
+	else
+		event_payload_set_int(ep, "created_empty", 0);
+	if (sc->flags & SPAWN_RESPAWN)
+		event_payload_set_int(ep, "created_respawn", 1);
+	else
+		event_payload_set_int(ep, "created_respawn", 0);
+
+	events_fire("pane-created", ep);
+}
+
 struct winlink *
 spawn_window(struct spawn_context *sc, char **cause)
 {
@@ -519,8 +558,8 @@ complete:
 
 	sigprocmask(SIG_SETMASK, &oldset, NULL);
 	window_pane_set_event(new_wp);
-
 	environ_free(child);
+	spawn_fire_pane_created(sc, new_wp);
 
 	if (sc->flags & SPAWN_RESPAWN)
 		return (new_wp);
