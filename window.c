@@ -1308,9 +1308,9 @@ window_pane_destroy(struct window_pane *wp)
 	window_pane_wait_finish(wp);
 	spawn_editor_finish(wp);
 
-	window_pane_clear_prompt(wp);
 	RB_REMOVE(window_pane_tree, &all_window_panes, wp);
 	wp->flags |= PANE_DESTROYED;
+	window_pane_clear_prompt(wp);
 
 	window_pane_free_modes(wp);
 	screen_write_clear_dirty(wp);
@@ -1657,10 +1657,13 @@ window_pane_clear_prompt(struct window_pane *wp)
 	if (prompt != NULL) {
 		if (wpp != NULL)
 			type = wpp->type;
+
 		wp->prompt = NULL;
 		prompt_free(prompt);
 		wp->flags |= PANE_REDRAW;
-		window_fire_pane_prompt("pane-prompt-closed", wp, type);
+
+		if (~wp->flags & PANE_DESTROYED)
+			window_fire_pane_prompt("pane-prompt-closed", wp, type);
 	}
 }
 

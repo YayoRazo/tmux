@@ -151,6 +151,7 @@ cmd_break_pane_exec(struct cmd *self, struct cmdq_item *item)
 	layout_close_pane(wp);
 
 	w = wp->window = window_create(w->sx, w->sy, w->xpixel, w->ypixel);
+	window_add_ref(w, __func__);
 	options_set_parent(wp->options, w->options);
 	wp->flags |= (PANE_STYLECHANGED|PANE_THEMECHANGED);
 	TAILQ_INSERT_HEAD(&w->panes, wp, entry);
@@ -173,6 +174,7 @@ cmd_break_pane_exec(struct cmd *self, struct cmdq_item *item)
 	if (idx == -1)
 		idx = -1 - options_get_number(dst_s->options, "base-index");
 	wl = session_attach(dst_s, w, idx, &cause); /* can't fail */
+	window_remove_ref(w, __func__);
 	if (!args_has(args, 'd')) {
 		session_select(dst_s, wl->idx);
 		cmd_find_from_session(current, dst_s, 0);
