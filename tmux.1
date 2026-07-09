@@ -2342,7 +2342,8 @@ but also exit copy mode if the cursor reaches the bottom.
 .It Xo
 .Ic scroll\-exit\-on
 .Xc
-Turn on exiting copy mode when scrolling to the end of the buffer.
+Turn on exiting copy mode when scrolling to the end of the buffer, unless a
+selection is present.
 .It Xo
 .Ic scroll\-exit\-off
 .Xc
@@ -2619,6 +2620,7 @@ instead of
 .Fl e
 specifies that scrolling to the bottom of the history (to the visible screen)
 should exit copy mode.
+This will not happen if a selection is present.
 While in copy mode, pressing a key other than those used for scrolling will
 disable this behaviour.
 This is intended to allow fast scrolling through a pane's history, for
@@ -6843,10 +6845,14 @@ Adding
 will use shorter but less accurate time format for times in the past.
 .Ql r
 .Pq Ql t/r
-will show the time relative to the current time, for example
+will give the time relative to the current time, for example
 .Ql \&1m
 or
 .Ql 2m23s .
+.Ql d
+.Pq Ql t/d
+will give the difference from the time to current time in seconds (future
+times are negative).
 A custom format may be given using an
 .Ql f
 suffix (note that
