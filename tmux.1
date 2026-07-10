@@ -6325,11 +6325,7 @@ For example, this could be used to write to a log file:
 set\-hook \-g command\-error "run\-shell \\"echo 'a tmux command failed' >>/tmp/log\\""
 .Ed
 .Pp
-All the notifications listed in the
-.Sx CONTROL MODE
-section are hooks (without any arguments), except
-.Ic %exit .
-The following additional hooks are available:
+The following hooks are available in addition to after hooks:
 .Bl -tag -width "XXXXXXXXXXXXXXXXXXXXXX"
 .It alert\-activity
 Run when a window has activity.
@@ -6348,11 +6344,11 @@ Run when a client becomes the latest active client of its session.
 .It client\-attached
 Run when a client is attached.
 .It client\-detached
-Run when a client is detached
+Run when a client is detached.
 .It client\-focus\-in
-Run when focus enters a client
+Run when focus enters a client.
 .It client\-focus\-out
-Run when focus exits a client
+Run when focus exits a client.
 .It client\-resized
 Run when a client is resized.
 .It client\-session\-changed
@@ -6381,6 +6377,8 @@ option is on.
 Run when the focus exits a pane, if the
 .Ic focus\-events
 option is on.
+.It pane\-mode\-changed
+Run when a pane changes mode.
 .It pane\-mode\-entered
 Run when a pane enters a mode.
 .It pane\-mode\-exited
@@ -6395,16 +6393,22 @@ Run when a pane is resized.
 Run when the terminal clipboard is set using the
 .Xr xterm 1
 escape sequence.
-.It session\-created
-Run when a new session created.
+.It pane\-title\-changed
+Run when a pane title is changed.
 .It session\-closed
-Run when a session closed.
+Run when a session is closed.
+.It session\-created
+Run when a new session is created.
 .It session\-renamed
 Run when a session is renamed.
+.It session\-window\-changed
+Run when a session changes its active window.
 .It window\-layout\-changed
 Run when a window layout is changed.
 .It window\-linked
 Run when a window is linked into a session.
+.It window\-pane\-changed
+Run when a window changes its active pane.
 .It window\-renamed
 Run when a window is renamed.
 .It window\-resized
