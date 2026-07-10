@@ -138,6 +138,7 @@ cmd_set_hook_monitor_exec(struct cmdq_item *item, struct args *args, int window)
 	struct cmd_find_state	*target = cmdq_get_target(item), fs;
 	struct options		*oo;
 	struct options_entry	*o;
+	struct session		*s = NULL;
 	char			*cause = NULL, *name = NULL, *format = NULL;
 	char			*expanded = NULL, *newvalue = NULL;
 	const char		*value, *old;
@@ -199,7 +200,11 @@ cmd_set_hook_monitor_exec(struct cmdq_item *item, struct args *args, int window)
 		}
 	}
 
-	hooks_monitor_add(item, oo, name, type, id, format, &fs, target->s);
+	if (oo != global_options &&
+	    oo != global_s_options &&
+	    oo != global_w_options)
+		s = target->s;
+	hooks_monitor_add(item, oo, name, type, id, format, &fs, s);
 
 out:
 	free(newvalue);
