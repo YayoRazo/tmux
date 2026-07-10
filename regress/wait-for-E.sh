@@ -107,6 +107,17 @@ wait "$forced_pid" || fail "wait-for -E -w did not wake event waiter"
 [ "$($TMUX show -gqv @forced)" = 1 ] ||
 	fail "wait-for -E -w did not continue event waiter"
 
+if $TMUX wait-for -E foobar 2>/dev/null; then
+	fail "wait-for -E accepted invalid event"
+fi
+
+$TMUX wait-for -E @not-yet-fired &
+not_yet_pid=$!
+client=$(wait_list 1 @not-yet-fired)
+$TMUX wait-for -E -w "$client" @not-yet-fired ||
+	fail "wait-for -E -w @not-yet-fired failed"
+wait "$not_yet_pid" || fail "wait-for -E @not-yet-fired failed"
+
 $TMUX set -g @wf_value 0 || fail "set @wf_value failed"
 $TMUX set-hook -g -B '@wf::#{@wf_value}' 'wait-for -S wf-hook' ||
 	fail "set-hook -B failed"

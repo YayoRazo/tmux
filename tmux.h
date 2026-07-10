@@ -2735,6 +2735,7 @@ char	*format_trim_right(const char *, u_int);
 
 /* hooks.c */
 void	 hooks_add_event(const char *);
+int	 hooks_valid_event_name(const char *);
 void	 hooks_build_events(void);
 void	 hooks_run(struct cmdq_item *, const char *);
 void	 hooks_monitor_add(struct cmdq_item *, struct options *,

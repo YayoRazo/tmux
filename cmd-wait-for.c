@@ -267,6 +267,10 @@ cmd_wait_for_event(struct cmdq_item *item, const char *name, struct args *args)
 	struct wait_event_item	*wei;
 	const char		*filter = args_get(args, 'F');
 
+	if (!hooks_valid_event_name(name)) {
+		cmdq_error(item, "invalid event: %s", name);
+		return (CMD_RETURN_ERROR);
+	}
 	if (args_has(args, 'l'))
 		return (cmd_wait_for_event_list(item, name));
 	if (args_has(args, 'w'))
