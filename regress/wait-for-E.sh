@@ -187,4 +187,20 @@ $TMUX rename-window -t wf2:0 renamed-again ||
 	fail "rename-window renamed-again failed"
 wait_channel wf-hook-renamed
 
+$TMUX set -g @builtin_filtered 0 || fail "set @builtin_filtered failed"
+target=$($TMUX splitw -d -t wf2:0 -P -F '#{pane_id}' 'sleep 30') ||
+	fail "split-window target failed"
+$TMUX wait-for -E -F "#{==:#{pane},$target}" pane-exited \; \
+	set -g @builtin_filtered 1 \; wait-for -S wf-builtin-filtered &
+builtin_filtered_pid=$!
+assert_unchanged @builtin_filtered 0 5
+
+$TMUX splitw -d -t wf2:0 'true' || fail "split-window nonmatching failed"
+assert_unchanged @builtin_filtered 0 5
+
+$TMUX send-keys -t "$target" C-c || fail "send C-c to target failed"
+wait_channel wf-builtin-filtered
+wait "$builtin_filtered_pid" ||
+	fail "filtered wait-for -E pane-exited command failed"
+
 exit 0
