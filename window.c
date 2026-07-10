@@ -1184,6 +1184,7 @@ window_pane_create(struct window *w, u_int sx, u_int sy, u_int hlimit)
 	wp->window = w;
 	wp->options = options_create(w->options);
 	wp->flags = PANE_STYLECHANGED;
+	wp->cmd_status = -1;
 
 	wp->id = next_window_pane_id++;
 	RB_INSERT(window_pane_tree, &all_window_panes, wp);
